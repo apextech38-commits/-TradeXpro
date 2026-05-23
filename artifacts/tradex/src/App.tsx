@@ -26,7 +26,15 @@ const queryClient = new QueryClient();
 
 function AppContent() {
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(TABS[0]);
+  const initTab = (() => {
+    const p = new URLSearchParams(window.location.search).get("tab");
+    if (p) {
+      const found = TABS.find(t => t.toLowerCase().replace(/\s+/g, "-") === p.toLowerCase());
+      if (found) return found;
+    }
+    return TABS[0];
+  })();
+  const [activeTab, setActiveTab] = useState(initTab);
 
   useEffect(() => {
     const handler = (e: Event) => {
