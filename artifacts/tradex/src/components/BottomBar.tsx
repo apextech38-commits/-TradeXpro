@@ -186,24 +186,27 @@ export default function BottomBar() {
       {/* Expanded Panel */}
       {expanded && (
         <div className="fixed bottom-[52px] left-0 right-0 z-40 bg-[#F4F6FA] border-t border-[#E5E7EB] shadow-[0_-10px_40px_rgba(0,0,0,0.10)]">
-          <div className="flex items-center gap-6 px-6 border-b border-[#E5E7EB] bg-white">
-            {["Summary", "Transactions", "Journal"].map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab
-                    ? "border-[#1E90FF] text-[#1E90FF]"
-                    : "border-transparent text-[#6B7280] hover:text-[#1A1A1A]"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-            <div className="flex-1" />
+          <div className="flex items-center border-b border-[#E5E7EB] bg-white min-w-0">
+            {/* Tabs — scrollable horizontally on narrow screens */}
+            <div className="flex items-center overflow-x-auto no-scrollbar flex-1 min-w-0 px-4">
+              {["Summary", "Transactions", "Journal"].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`py-3 px-3 text-sm font-medium border-b-2 whitespace-nowrap shrink-0 transition-colors ${
+                    activeTab === tab
+                      ? "border-[#1E90FF] text-[#1E90FF]"
+                      : "border-transparent text-[#6B7280] hover:text-[#1A1A1A]"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+            {/* Reset — always visible, never pushed off-screen */}
             <button
               onClick={reset}
-              className="text-xs text-[#6B7280] hover:text-[#1A1A1A] border border-[#E5E7EB] px-3 py-1 rounded hover:bg-[#F4F6FA]"
+              className="text-xs text-[#6B7280] hover:text-[#1A1A1A] border border-[#E5E7EB] px-3 py-1 rounded hover:bg-[#F4F6FA] shrink-0 mr-3"
             >
               Reset
             </button>
