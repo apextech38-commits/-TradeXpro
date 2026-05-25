@@ -107,9 +107,19 @@ interface Props {
   symbol: string;
   height?: number | string;
   isMobile?: boolean;
+  theme?: "light" | "dark";
+  chartType?: string;
+  granularity?: number;
 }
 
-export default function DerivSmartChart({ symbol, height = "100%", isMobile = true }: Props) {
+export default function DerivSmartChart({
+  symbol,
+  height = "100%",
+  isMobile = true,
+  theme = "dark",
+  chartType = "mountain",
+  granularity = 0,
+}: Props) {
   const mgr = useRef<DerivWSManager | null>(null);
   if (!mgr.current) mgr.current = new DerivWSManager();
 
@@ -127,8 +137,8 @@ export default function DerivSmartChart({ symbol, height = "100%", isMobile = tr
       <SmartChart
         id="tradex-sc"
         symbol={symbol}
-        granularity={0}
-        chartType="mountain"
+        granularity={granularity}
+        chartType={chartType}
         isMobile={isMobile}
         isConnectionOpened={true}
         enableRouting={false}
