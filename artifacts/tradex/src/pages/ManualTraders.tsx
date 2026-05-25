@@ -2,9 +2,8 @@ import {
   useState, useEffect, useRef, useCallback, useMemo,
 } from "react";
 import {
-  X, ChevronDown, Plus, Minus, Check,
-  TrendingUp, TrendingDown, Clock, AlertCircle, CheckCircle2,
-  Flame,
+  ChevronDown, X, Info, AlertTriangle, Check,
+  TrendingUp, TrendingDown, Clock, CheckCircle2, AlertCircle,
 } from "lucide-react";
 import AuthGateModal from "@/components/AuthGateModal";
 import { useAuth, DERIV_APP_ID } from "@/context/AuthContext";
@@ -16,117 +15,8 @@ import type { IChartApi, ISeriesApi, UTCTimestamp } from "lightweight-charts";
 const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
 
 /* ─────────────────────────────────────────────────────────────────────
-   TRADE TYPE DEFINITIONS — mirrors DTrader taxonomy
+   MARKETS
 ────────────────────────────────────────────────────────────────────── */
-interface TradeType {
-  id: string;
-  label: string;
-  isPopular?: boolean;
-  isHot?: boolean;
-  hasTabs: boolean;
-  tabs: { id: string; label: string; color: "buy" | "sell" }[];
-  hasDuration: boolean;
-  hasBarrier: boolean;
-  hasGrowthRate: boolean;
-  hasTakeProfit: boolean;
-  hasMultiplier: boolean;
-  hasAllowEquals?: boolean;
-  maxPayout: number;
-}
-
-const TRADE_TYPES: TradeType[] = [
-  {
-    id: "accumulators",
-    label: "Accumulators",
-    isHot: true,
-    hasTabs: false,
-    tabs: [],
-    hasDuration: false,
-    hasBarrier: false,
-    hasGrowthRate: true,
-    hasTakeProfit: true,
-    hasMultiplier: false,
-    maxPayout: 6000,
-  },
-  {
-    id: "rise_fall",
-    label: "Rise/Fall",
-    isPopular: true,
-    hasTabs: true,
-    tabs: [
-      { id: "rise", label: "Rise", color: "buy" },
-      { id: "fall", label: "Fall", color: "sell" },
-    ],
-    hasDuration: true,
-    hasBarrier: false,
-    hasGrowthRate: false,
-    hasTakeProfit: false,
-    hasMultiplier: false,
-    hasAllowEquals: true,
-    maxPayout: 50000,
-  },
-  {
-    id: "higher_lower",
-    label: "Higher/Lower",
-    hasTabs: true,
-    tabs: [
-      { id: "higher", label: "Higher", color: "buy" },
-      { id: "lower", label: "Lower", color: "sell" },
-    ],
-    hasDuration: true,
-    hasBarrier: true,
-    hasGrowthRate: false,
-    hasTakeProfit: false,
-    hasMultiplier: false,
-    maxPayout: 50000,
-  },
-  {
-    id: "touch",
-    label: "Touch/No Touch",
-    hasTabs: true,
-    tabs: [
-      { id: "touch", label: "Touch", color: "buy" },
-      { id: "no_touch", label: "No Touch", color: "sell" },
-    ],
-    hasDuration: true,
-    hasBarrier: true,
-    hasGrowthRate: false,
-    hasTakeProfit: false,
-    hasMultiplier: false,
-    maxPayout: 50000,
-  },
-  {
-    id: "multipliers",
-    label: "Multipliers",
-    hasTabs: true,
-    tabs: [
-      { id: "up", label: "Up", color: "buy" },
-      { id: "down", label: "Down", color: "sell" },
-    ],
-    hasDuration: false,
-    hasBarrier: false,
-    hasGrowthRate: false,
-    hasTakeProfit: true,
-    hasMultiplier: true,
-    maxPayout: 100000,
-  },
-  {
-    id: "digits",
-    label: "Digits",
-    hasTabs: true,
-    tabs: [
-      { id: "even", label: "Even", color: "buy" },
-      { id: "odd", label: "Odd", color: "sell" },
-    ],
-    hasDuration: true,
-    hasBarrier: false,
-    hasGrowthRate: false,
-    hasTakeProfit: false,
-    hasMultiplier: false,
-    maxPayout: 50000,
-  },
-];
-
 const MARKETS = [
   { label: "Volatility 100 (1s) Index", short: "V100(1s)", id: "1HZ100V", pip: 2 },
   { label: "Volatility 100 Index",       short: "V 100",    id: "R_100",   pip: 2 },
@@ -140,23 +30,79 @@ const MARKETS = [
   { label: "Volatility 10 Index",        short: "V 10",     id: "R_10",    pip: 3 },
 ];
 
+/* ─────────────────────────────────────────────────────────────────────
+   TRADE TYPES
+────────────────────────────────────────────────────────────────────── */
+interface TradeType {
+  id: string;
+  label: string;
+  icon: string;
+  hasDuration: boolean;
+  hasBarrier: boolean;
+  hasGrowthRate: boolean;
+  hasTakeProfit: boolean;
+  hasMultiplier: boolean;
+  hasAllowEquals?: boolean;
+  maxPayout: number;
+  maxTicks?: number;
+  buttonType: "single" | "dual";
+  buyLabel: string;
+  sellLabel?: string;
+  buyColor: string;
+  sellColor?: string;
+}
+
+const TRADE_TYPES: TradeType[] = [
+  {
+    id: "accumulators", label: "Accumulators", icon: "📈",
+    hasDuration: false, hasBarrier: false, hasGrowthRate: true,
+    hasTakeProfit: true, hasMultiplier: false, maxPayout: 6000, maxTicks: 85,
+    buttonType: "single", buyLabel: "Buy", buyColor: "#00a79e",
+  },
+  {
+    id: "rise_fall", label: "Rise/Fall", icon: "↕️",
+    hasDuration: true, hasBarrier: false, hasGrowthRate: false,
+    hasTakeProfit: false, hasMultiplier: false, hasAllowEquals: true, maxPayout: 50000,
+    buttonType: "dual", buyLabel: "Rise", sellLabel: "Fall",
+    buyColor: "#00a79e", sellColor: "#ec3f3f",
+  },
+  {
+    id: "higher_lower", label: "Higher/Lower", icon: "⬆️",
+    hasDuration: true, hasBarrier: true, hasGrowthRate: false,
+    hasTakeProfit: false, hasMultiplier: false, maxPayout: 50000,
+    buttonType: "dual", buyLabel: "Higher", sellLabel: "Lower",
+    buyColor: "#00a79e", sellColor: "#ec3f3f",
+  },
+  {
+    id: "touch", label: "Touch/No Touch", icon: "👆",
+    hasDuration: true, hasBarrier: true, hasGrowthRate: false,
+    hasTakeProfit: false, hasMultiplier: false, maxPayout: 50000,
+    buttonType: "dual", buyLabel: "Touch", sellLabel: "No Touch",
+    buyColor: "#00a79e", sellColor: "#ec3f3f",
+  },
+  {
+    id: "multipliers", label: "Multipliers", icon: "✖️",
+    hasDuration: false, hasBarrier: false, hasGrowthRate: false,
+    hasTakeProfit: true, hasMultiplier: true, maxPayout: 100000,
+    buttonType: "dual", buyLabel: "Up", sellLabel: "Down",
+    buyColor: "#00a79e", sellColor: "#ec3f3f",
+  },
+  {
+    id: "digits", label: "Even/Odd", icon: "🔢",
+    hasDuration: true, hasBarrier: false, hasGrowthRate: false,
+    hasTakeProfit: false, hasMultiplier: false, maxPayout: 50000,
+    buttonType: "dual", buyLabel: "Even", sellLabel: "Odd",
+    buyColor: "#00a79e", sellColor: "#ec3f3f",
+  },
+];
+
 const GROWTH_RATES = [1, 2, 3, 4, 5];
 const MULTIPLIERS  = [10, 20, 30, 40, 50, 100, 200, 500];
-const STAKE_PRESETS = [1, 5, 10, 20, 50, 100, 200, 500];
-const BARRIER_PRESETS = [
-  { label: "+0.01", value: "+0.01" },
-  { label: "+0.02", value: "+0.02" },
-  { label: "+0.05", value: "+0.05" },
-  { label: "+0.10", value: "+0.10" },
-  { label: "+0.20", value: "+0.20" },
-  { label: "+0.50", value: "+0.50" },
-];
 const DURATION_UNITS = [
   { id: "t", label: "Ticks",   presets: [1, 3, 5, 7, 10, 15, 20, 30, 50, 100] },
   { id: "s", label: "Seconds", presets: [15, 30, 45, 60, 90, 120, 180, 300] },
   { id: "m", label: "Minutes", presets: [1, 2, 3, 5, 10, 15, 30, 60] },
   { id: "h", label: "Hours",   presets: [1, 2, 3, 4, 6, 8, 12, 24] },
-  { id: "d", label: "Days",    presets: [1, 2, 3, 5, 7, 14, 30] },
 ];
 
 /* ─────────────────────────────────────────────────────────────────────
@@ -193,26 +139,50 @@ function useLivePrice(symbol: string) {
       : "flat";
 
   const change = useMemo(() => {
-    if (price == null || openPrice == null) return { pct: "0.00", dir: "flat" as const };
+    if (price == null || openPrice == null) return { val: "0.00", pct: "0.000", dir: "flat" as const };
     const diff = price - openPrice;
     const pct  = (diff / openPrice) * 100;
-    return { pct: Math.abs(pct).toFixed(3), dir: diff > 0 ? "up" as const : diff < 0 ? "down" as const : "flat" as const };
+    return {
+      val: Math.abs(diff).toFixed(2),
+      pct: Math.abs(pct).toFixed(2),
+      dir: diff > 0 ? "up" as const : diff < 0 ? "down" as const : "flat" as const,
+    };
   }, [price, openPrice]);
 
   return { price, change, dir };
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   CHART
+   CHART — with blue barrier band zone (DTrader style)
 ────────────────────────────────────────────────────────────────────── */
-function TradingChart({ symbol, pip, showBarriers }: {
-  symbol: string; pip: number; showBarriers: boolean;
+function TradingChart({ symbol, pip, showBarriers, barrierPct }: {
+  symbol: string; pip: number; showBarriers: boolean; barrierPct: number;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef     = useRef<IChartApi | null>(null);
-  const areaRef      = useRef<ISeriesApi<"Area"> | null>(null);
-  const upperRef     = useRef<ISeriesApi<"Line"> | null>(null);
-  const lowerRef     = useRef<ISeriesApi<"Line"> | null>(null);
+  const containerRef  = useRef<HTMLDivElement>(null);
+  const overlayRef    = useRef<HTMLDivElement>(null);
+  const chartRef      = useRef<IChartApi | null>(null);
+  const areaRef       = useRef<ISeriesApi<"Area"> | null>(null);
+  const upperRef      = useRef<ISeriesApi<"Line"> | null>(null);
+  const lowerRef      = useRef<ISeriesApi<"Line"> | null>(null);
+  const lastPriceRef  = useRef<number | null>(null);
+  const animFrameRef  = useRef<number>(0);
+
+  const updateOverlay = useCallback(() => {
+    if (!chartRef.current || !overlayRef.current || !lastPriceRef.current || !showBarriers) return;
+    try {
+      const price = lastPriceRef.current;
+      const upper = price * (1 + barrierPct / 100);
+      const lower = price * (1 - barrierPct / 100);
+      const ps = chartRef.current.priceScale("right");
+      const yUpper = ps.priceToCoordinate(upper);
+      const yLower = ps.priceToCoordinate(lower);
+      if (yUpper != null && yLower != null) {
+        overlayRef.current.style.top    = `${yUpper}px`;
+        overlayRef.current.style.height = `${Math.max(0, yLower - yUpper)}px`;
+        overlayRef.current.style.opacity = "1";
+      }
+    } catch (_) {}
+  }, [showBarriers, barrierPct]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -236,28 +206,54 @@ function TradingChart({ symbol, pip, showBarriers }: {
         vertLine: { color: "rgba(0,0,0,0.15)", width: 1, style: LineStyle.Dashed, labelBackgroundColor: "#1a1a1a" },
         horzLine: { color: "rgba(0,0,0,0.15)", width: 1, style: LineStyle.Dashed, labelBackgroundColor: "#1a1a1a" },
       },
-      rightPriceScale: { borderColor: "#f3f4f6", scaleMargins: { top: 0.15, bottom: 0.08 } },
-      timeScale: { borderColor: "#f3f4f6", timeVisible: true, secondsVisible: false, rightOffset: 4, barSpacing: 6 },
+      rightPriceScale: {
+        borderColor: "#f3f4f6",
+        scaleMargins: { top: 0.18, bottom: 0.12 },
+      },
+      timeScale: {
+        borderColor: "#f3f4f6",
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 4,
+        barSpacing: 6,
+      },
       width:  el.clientWidth,
-      height: el.clientHeight || 400,
+      height: el.clientHeight || 300,
     });
     chartRef.current = chart;
 
     const area = chart.addSeries(AreaSeries, {
-      lineColor: "#4b4b4b", topColor: "rgba(0,0,0,0.06)", bottomColor: "rgba(0,0,0,0)",
-      lineWidth: 1, crosshairMarkerVisible: true, crosshairMarkerRadius: 4,
-      crosshairMarkerBackgroundColor: "#1a1a1a", crosshairMarkerBorderColor: "#ffffff",
-      crosshairMarkerBorderWidth: 2, lastValueVisible: true, priceLineVisible: false,
+      lineColor: "#374151",
+      topColor: "rgba(55,65,81,0.08)",
+      bottomColor: "rgba(55,65,81,0)",
+      lineWidth: 1,
+      crosshairMarkerVisible: true,
+      crosshairMarkerRadius: 5,
+      crosshairMarkerBackgroundColor: "#1a1a1a",
+      crosshairMarkerBorderColor: "#ffffff",
+      crosshairMarkerBorderWidth: 2,
+      lastValueVisible: true,
+      priceLineVisible: false,
     });
     areaRef.current = area;
 
     const upper = chart.addSeries(LineSeries, {
-      color: "#2196f3", lineWidth: 1, lineStyle: LineStyle.Dashed,
-      lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+      color: "#2196f3",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      lastValueVisible: true,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+      priceFormat: { type: "price", precision: pip, minMove: Math.pow(10, -pip) },
     });
     const lower = chart.addSeries(LineSeries, {
-      color: "#2196f3", lineWidth: 1, lineStyle: LineStyle.Dashed,
-      lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+      color: "#2196f3",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      lastValueVisible: true,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+      priceFormat: { type: "price", precision: pip, minMove: Math.pow(10, -pip) },
     });
     upperRef.current = upper;
     lowerRef.current = lower;
@@ -265,13 +261,18 @@ function TradingChart({ symbol, pip, showBarriers }: {
     const ro = new ResizeObserver(() => {
       if (!el || !chartRef.current) return;
       chartRef.current.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+      animFrameRef.current = requestAnimationFrame(updateOverlay);
     });
     ro.observe(el);
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+      animFrameRef.current = requestAnimationFrame(updateOverlay);
+    });
 
     const ws = new WebSocket(WS_URL);
     ws.onopen = () => {
       if (!mounted) return;
-      ws.send(JSON.stringify({ ticks_history: symbol, count: 200, end: "latest", style: "ticks", subscribe: 1 }));
+      ws.send(JSON.stringify({ ticks_history: symbol, count: 150, end: "latest", style: "ticks", subscribe: 1 }));
     };
     ws.onmessage = (evt) => {
       if (!mounted) return;
@@ -283,23 +284,29 @@ function TradingChart({ symbol, pip, showBarriers }: {
           const pts = times.map((t, i) => ({ time: t as UTCTimestamp, value: prices[i] }));
           if (areaRef.current && pts.length > 0) {
             areaRef.current.setData(pts);
+            lastPriceRef.current = prices[prices.length - 1];
             chartRef.current?.timeScale().fitContent();
+            animFrameRef.current = requestAnimationFrame(updateOverlay);
           }
         }
         if (msg.msg_type === "tick") {
           const { epoch, quote } = msg.tick as { epoch: number; quote: number };
           areaRef.current?.update({ time: epoch as UTCTimestamp, value: quote });
+          lastPriceRef.current = quote;
           if (showBarriers && upperRef.current && lowerRef.current) {
-            const pct = 0.00351;
-            upperRef.current.update({ time: epoch as UTCTimestamp, value: +(quote * (1 + pct)).toFixed(pip) });
-            lowerRef.current.update({ time: epoch as UTCTimestamp, value: +(quote * (1 - pct)).toFixed(pip) });
+            const up = +(quote * (1 + barrierPct / 100)).toFixed(pip);
+            const dn = +(quote * (1 - barrierPct / 100)).toFixed(pip);
+            upperRef.current.update({ time: epoch as UTCTimestamp, value: up });
+            lowerRef.current.update({ time: epoch as UTCTimestamp, value: dn });
           }
+          animFrameRef.current = requestAnimationFrame(updateOverlay);
         }
       } catch (_) {}
     };
 
     return () => {
       mounted = false;
+      cancelAnimationFrame(animFrameRef.current);
       ro.disconnect();
       ws.onclose = null;
       ws.close();
@@ -309,15 +316,36 @@ function TradingChart({ symbol, pip, showBarriers }: {
       upperRef.current = null;
       lowerRef.current = null;
     };
-  }, [symbol, pip, showBarriers]);
+  }, [symbol, pip, showBarriers, barrierPct, updateOverlay]);
 
-  return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
+  return (
+    <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }}>
+      {/* Blue barrier band overlay — positioned by JS via priceToCoordinate */}
+      {showBarriers && (
+        <div
+          ref={overlayRef}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            opacity: 0,
+            background: "rgba(33, 150, 243, 0.08)",
+            borderTop: "1px dashed rgba(33,150,243,0.6)",
+            borderBottom: "1px dashed rgba(33,150,243,0.6)",
+            pointerEvents: "none",
+            zIndex: 1,
+            transition: "opacity 0.3s",
+          }}
+        />
+      )}
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   BOTTOM SHEET (mobile utility)
+   MODAL SHEET — bottom drawer
 ────────────────────────────────────────────────────────────────────── */
-function BottomSheet({ open, onClose, title, children }: {
+function Sheet({ open, onClose, title, children }: {
   open: boolean; onClose: () => void; title: string; children: React.ReactNode;
 }) {
   if (!open) return null;
@@ -325,14 +353,16 @@ function BottomSheet({ open, onClose, title, children }: {
     <div
       className="fixed inset-0 z-50 flex items-end"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+      style={{ background: "rgba(0,0,0,0.45)" }}
     >
-      <div className="w-full bg-white rounded-t-2xl shadow-2xl flex flex-col max-h-[80vh]"
-        style={{ animation: "sheet-up 0.22s cubic-bezier(0.22,1,0.36,1) both" }}>
+      <div
+        className="w-full bg-white rounded-t-2xl shadow-2xl flex flex-col"
+        style={{ maxHeight: "80vh", animation: "sheet-up 0.22s cubic-bezier(0.22,1,0.36,1) both" }}
+      >
         <div className="relative flex items-center justify-center px-4 pt-4 pb-3 shrink-0">
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-gray-200" />
           <span className="text-sm font-bold text-gray-900">{title}</span>
-          <button onClick={onClose} className="absolute right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100">
+          <button onClick={onClose} className="absolute right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">
             <X className="w-4 h-4 text-gray-500" />
           </button>
         </div>
@@ -345,92 +375,10 @@ function BottomSheet({ open, onClose, title, children }: {
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   PARAM ROW — the DTrader clickable parameter row pattern
-   Label on left, value on right; clicking opens a popover / sheet
-────────────────────────────────────────────────────────────────────── */
-function ParamRow({ label, value, onClick, disabled = false, children, noBorder = false }: {
-  label: string; value: string; onClick?: () => void;
-  disabled?: boolean; children?: React.ReactNode; noBorder?: boolean;
-}) {
-  return (
-    <div className={`relative ${noBorder ? "" : "border-b border-gray-100"}`}>
-      <button
-        onClick={disabled ? undefined : onClick}
-        disabled={disabled}
-        className={`w-full flex items-center justify-between px-4 py-3 min-h-[64px] text-left transition-colors ${
-          disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-50 cursor-pointer"
-        }`}
-      >
-        <span className="text-xs font-medium text-gray-500 leading-none">{label}</span>
-        <span className="text-sm font-semibold text-gray-900 leading-none flex items-center gap-1">
-          {value}
-          {!disabled && onClick && <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-        </span>
-      </button>
-      {children}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   CHIP GRID — reusable chip selector grid (DTrader popover style)
-────────────────────────────────────────────────────────────────────── */
-function ChipGrid<T extends string | number>({
-  values, selected, onSelect, format,
-}: { values: T[]; selected: T; onSelect: (v: T) => void; format?: (v: T) => string; }) {
-  return (
-    <div className="flex flex-wrap gap-2 p-4">
-      {values.map(v => (
-        <button
-          key={String(v)}
-          onClick={() => onSelect(v)}
-          className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-            v === selected
-              ? "bg-[#ff444f] border-[#ff444f] text-white"
-              : "bg-white border-gray-200 text-gray-700 hover:border-gray-400"
-          }`}
-        >
-          {format ? format(v) : String(v)}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   SEGMENTED CONTROL — DTrader trade-type-tabs style
-────────────────────────────────────────────────────────────────────── */
-function SegmentedControl({ tabs, selectedIdx, onSelect }: {
-  tabs: { label: string; color: "buy" | "sell" }[];
-  selectedIdx: number;
-  onSelect: (i: number) => void;
-}) {
-  return (
-    <div className="flex mx-4 my-3 rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
-      {tabs.map((tab, i) => (
-        <button
-          key={tab.label}
-          onClick={() => onSelect(i)}
-          className={`flex-1 py-2 text-xs font-bold tracking-wide transition-all ${
-            selectedIdx === i
-              ? tab.color === "buy"
-                ? "bg-[#4bb4b3] text-white shadow-sm"
-                : "bg-[#ec3f3f] text-white shadow-sm"
-              : "bg-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   CONTRACT CARD — open / settled trade cards
+   CONTRACT CARD
 ────────────────────────────────────────────────────────────────────── */
 interface Contract {
-  id: string; tradeType: string; subType: string; symbol: string;
+  id: string; label: string; subType: string; symbol: string;
   stake: number; payout: number; status: "open" | "won" | "lost"; expiresAt: number;
 }
 
@@ -442,41 +390,28 @@ function ContractCard({ c, onClose }: { c: Contract; onClose: (id: string) => vo
     return () => clearInterval(t);
   }, [c.status]);
   const secsLeft = Math.max(0, Math.round((c.expiresAt - now) / 1000));
-  const isUp  = ["rise", "higher", "up", "buy", "touch", "even"].includes(c.subType);
-  const isWon = c.status === "won";
+  const isUp   = ["rise", "higher", "up", "buy", "touch", "even"].includes(c.subType);
+  const isWon  = c.status === "won";
   const isDone = c.status !== "open";
   const profit = isWon ? c.payout - c.stake : -c.stake;
-
   return (
-    <div className={`rounded-xl border p-3 flex items-center gap-3 text-left ${
-      isDone ? (isWon ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50") : "border-gray-200 bg-white"
-    }`}>
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-        isUp ? "bg-green-100 text-green-600" : "bg-red-100 text-red-500"
-      }`}>
+    <div className={`rounded-xl border p-3 flex items-center gap-3 text-left ${isDone
+      ? (isWon ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50")
+      : "border-gray-200 bg-white"}`}
+    >
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isUp ? "bg-green-100 text-green-600" : "bg-red-100 text-red-500"}`}>
         {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-bold text-gray-800">{c.tradeType} · {c.subType}</div>
-        <div className="text-[11px] text-gray-400">{c.symbol}</div>
-        <div className="text-[11px] text-gray-500 mt-0.5">
-          Stake: <span className="font-semibold text-gray-700">${c.stake.toFixed(2)}</span>
-          {" · "}Payout: <span className="font-semibold text-gray-700">${c.payout.toFixed(2)}</span>
-        </div>
+        <div className="text-xs font-bold text-gray-800">{c.label} · {c.subType}</div>
+        <div className="text-[11px] text-gray-400">{c.symbol} · Stake ${c.stake.toFixed(2)} · Payout ${c.payout.toFixed(2)}</div>
       </div>
       <div className="flex flex-col items-end gap-1 shrink-0">
-        {isDone ? (
-          <>
-            {isWon ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <AlertCircle className="w-4 h-4 text-red-500" />}
-            <span className={`text-xs font-bold ${isWon ? "text-green-600" : "text-red-600"}`}>
-              {isWon ? "+" : ""}{profit.toFixed(2)}
-            </span>
-          </>
-        ) : (
-          <div className="flex items-center gap-1 text-[10px] text-gray-400">
-            <Clock className="w-3 h-3" />{secsLeft}s
-          </div>
-        )}
+        {isDone
+          ? <><span className={`text-xs font-bold ${isWon ? "text-green-600" : "text-red-500"}`}>{isWon ? "+" : ""}{profit.toFixed(2)}</span>
+              {isWon ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <AlertCircle className="w-4 h-4 text-red-500" />}</>
+          : <span className="text-[10px] text-gray-400 flex items-center gap-0.5"><Clock className="w-3 h-3" />{secsLeft}s</span>
+        }
         <button onClick={() => onClose(c.id)} className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100">
           <X className="w-3 h-3 text-gray-400" />
         </button>
@@ -489,594 +424,428 @@ function ContractCard({ c, onClose }: { c: Contract; onClose: (id: string) => vo
    MAIN PAGE
 ────────────────────────────────────────────────────────────────────── */
 export default function ManualTraders() {
-  const { isLoggedIn, balance, currency } = useAuth();
+  const { isLoggedIn, currency } = useAuth();
   const cur = currency || "USD";
 
-  /* ── Core state ─────────────────────────────────────────────────── */
-  const [market,         setMarket]        = useState(MARKETS[0]);
-  const [typeId,         setTypeId]        = useState("accumulators");
-  const [tabIdx,         setTabIdx]        = useState(0);
-  const [stake,          setStake]         = useState(10);
-  const [stakeStr,       setStakeStr]      = useState("10");
-  const [growthRate,     setGrowthRate]    = useState(3);
-  const [multiplier,     setMultiplier]    = useState(20);
-  const [durUnitIdx,     setDurUnitIdx]    = useState(0);
-  const [durVal,         setDurVal]        = useState(5);
-  const [barrier,        setBarrier]       = useState("+0.01");
-  const [hasTakeProfit,  setHasTakeProfit] = useState(false);
-  const [takeProfit,     setTakeProfit]    = useState(100);
-  const [takeProfitStr,  setTpStr]         = useState("100");
-  const [allowEquals,    setAllowEquals]   = useState(false);
-  const [contracts,      setContracts]     = useState<Contract[]>([]);
-  const [buying,         setBuying]        = useState(false);
+  /* ── State ───────────────────────────────────────────────────────── */
+  const [market,        setMarket]       = useState(MARKETS[0]);
+  const [typeId,        setTypeId]       = useState("accumulators");
+  const [stake,         setStake]        = useState(10);
+  const [stakeStr,      setStakeStr]     = useState("10");
+  const [growthRate,    setGrowthRate]   = useState(3);
+  const [multiplier,    setMultiplier]   = useState(20);
+  const [durUnitIdx,    setDurUnitIdx]   = useState(0);
+  const [durVal,        setDurVal]       = useState(5);
+  const [barrier,       setBarrier]      = useState("+0.01");
+  const [hasTakeProfit, setHasTakeProfit]= useState(false);
+  const [takeProfit,    setTakeProfit]   = useState(100);
+  const [tpStr,         setTpStr]        = useState("100");
+  const [allowEquals,   setAllowEquals]  = useState(false);
+  const [contracts,     setContracts]    = useState<Contract[]>([]);
+  const [buying,        setBuying]       = useState(false);
 
-  /* ── Sheet/popover visibility ─────────────────────────────────────── */
-  const [marketSheet,   setMarketSheet]   = useState(false);
-  const [durSheet,      setDurSheet]      = useState(false);
-  const [stakePopover,  setStakePopover]  = useState(false);
-  const [growthPopover, setGrowthPopover] = useState(false);
-  const [multPopover,   setMultPopover]   = useState(false);
-  const [barrierSheet,  setBarrierSheet]  = useState(false);
-  const [authSheet,     setAuthSheet]     = useState(false);
-  const [riskSheet,     setRiskSheet]     = useState(false);
+  /* ── Sheet visibility ─────────────────────────────────────────────── */
+  const [mktSheet,    setMktSheet]    = useState(false);
+  const [typeSheet,   setTypeSheet]   = useState(false);
+  const [durSheet,    setDurSheet]    = useState(false);
+  const [growthSheet, setGrowthSheet] = useState(false);
+  const [multSheet,   setMultSheet]   = useState(false);
+  const [barrierSheet,setBarrierSheet]= useState(false);
+  const [authSheet,   setAuthSheet]   = useState(false);
+  const [riskSheet,   setRiskSheet]   = useState(false);
+  const [contractsOpen,setContractsOpen]=useState(false);
 
-  const tradeType = TRADE_TYPES.find(t => t.id === typeId) || TRADE_TYPES[0];
-  const durUnit   = DURATION_UNITS[durUnitIdx];
-
-  useEffect(() => { setTabIdx(0); }, [typeId]);
+  const tradeType  = TRADE_TYPES.find(t => t.id === typeId) || TRADE_TYPES[0];
+  const durUnit    = DURATION_UNITS[durUnitIdx];
+  const barrierPct = growthRate === 1 ? 0.226
+                   : growthRate === 2 ? 0.284
+                   : growthRate === 3 ? 0.351
+                   : growthRate === 4 ? 0.432
+                   :                   0.519;
 
   const { price, change, dir } = useLivePrice(market.id);
 
-  /* ── Stake helpers ────────────────────────────────────────────────── */
+  /* ── Helpers ─────────────────────────────────────────────────────── */
   const commitStake = useCallback(() => {
     const v = parseFloat(stakeStr);
     if (!isNaN(v) && v >= 0.35) { setStake(v); setStakeStr(String(v)); }
     else setStakeStr(String(stake));
   }, [stakeStr, stake]);
 
-  const nudgeStake = useCallback((d: number) => {
-    setStake(s => {
-      const n = Math.max(0.35, +(s + d).toFixed(2));
-      setStakeStr(String(n));
-      return n;
-    });
-  }, []);
+  const nudgeStake = (d: number) => {
+    setStake(s => { const n = Math.max(0.35, +(s + d).toFixed(2)); setStakeStr(String(n)); return n; });
+  };
 
-  /* ── Take Profit helpers ──────────────────────────────────────────── */
   const commitTp = useCallback(() => {
-    const v = parseFloat(takeProfitStr);
+    const v = parseFloat(tpStr);
     if (!isNaN(v) && v > 0) { setTakeProfit(v); setTpStr(String(v)); }
     else setTpStr(String(takeProfit));
-  }, [takeProfitStr, takeProfit]);
+  }, [tpStr, takeProfit]);
 
-  /* ── Payout calc ─────────────────────────────────────────────────── */
-  const maxPayout   = tradeType.maxPayout;
-  const payoutMult  = tradeType.id === "accumulators" ? 0 : tradeType.id === "multipliers" ? multiplier : 1.85;
-  const estPayout   = tradeType.id === "accumulators" ? maxPayout : +(stake * payoutMult).toFixed(2);
-  const estProfit   = +(estPayout - stake).toFixed(2);
-  const retPct      = stake > 0 ? Math.round((estProfit / stake) * 100) : 0;
-
-  /* ── Duration label ───────────────────────────────────────────────── */
   const durLabel = `${durVal} ${durUnit.label.toLowerCase().replace(/s$/, "") + (durVal !== 1 ? "s" : "")}`;
 
-  /* ── Barrier display ──────────────────────────────────────────────── */
-  const barrierPct = 0.351;
-  const upperBarrier = price != null ? +(price * 1.00351).toFixed(market.pip) : null;
-  const lowerBarrier = price != null ? +(price * 0.99649).toFixed(market.pip) : null;
-
-  /* ── Buy handler ──────────────────────────────────────────────────── */
   const handleBuy = useCallback((subType: string) => {
     if (!isLoggedIn) { setAuthSheet(true); return; }
     if (!price || buying) return;
     setBuying(true);
     const durMs = tradeType.hasDuration
-      ? Math.max(3000, durVal * (
-          durUnit.id === "t" ? 1500 :
-          durUnit.id === "s" ? 1000 :
-          durUnit.id === "m" ? 60000 :
-          durUnit.id === "h" ? 3600000 : 86400000
-        ))
+      ? durVal * (durUnit.id === "t" ? 1500 : durUnit.id === "s" ? 1000 : durUnit.id === "m" ? 60000 : 3600000)
       : 15000;
+    const payout = tradeType.id === "accumulators"
+      ? stake * Math.pow(1 + growthRate / 100, Math.floor(durMs / 1500))
+      : tradeType.id === "multipliers" ? stake * (1 + multiplier * 0.01) : +(stake * 1.85).toFixed(2);
 
     setTimeout(() => {
-      const id = `C${Date.now()}`;
       const won = Math.random() > 0.45;
+      const id  = `C${Date.now()}`;
       setContracts(prev => [{
-        id,
-        tradeType: tradeType.label,
-        subType,
-        symbol: market.short,
-        stake,
-        payout: estPayout,
-        status: "open",
-        expiresAt: Date.now() + durMs,
-      }, ...prev].slice(0, 10));
+        id, label: tradeType.label, subType,
+        symbol: market.short, stake, payout, status: "open", expiresAt: Date.now() + durMs,
+      }, ...prev].slice(0, 8));
       setBuying(false);
-
       setTimeout(() => {
-        setContracts(prev => prev.map(c =>
-          c.id === id ? { ...c, status: won ? "won" : "lost" } : c
-        ));
+        setContracts(prev => prev.map(c => c.id === id ? { ...c, status: won ? "won" : "lost" } : c));
       }, durMs);
-    }, 400);
-  }, [isLoggedIn, price, buying, tradeType, durVal, durUnit, market, stake, estPayout]);
-
-  /* ── Stake popover ref (close on outside click) ─────────────────── */
-  const stakePopRef = useRef<HTMLDivElement>(null);
-  const growthPopRef = useRef<HTMLDivElement>(null);
-  const multPopRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!stakePopover && !growthPopover && !multPopover) return;
-    const h = (e: MouseEvent) => {
-      if (stakePopover && stakePopRef.current && !stakePopRef.current.contains(e.target as Node)) setStakePopover(false);
-      if (growthPopover && growthPopRef.current && !growthPopRef.current.contains(e.target as Node)) setGrowthPopover(false);
-      if (multPopover && multPopRef.current && !multPopRef.current.contains(e.target as Node)) setMultPopover(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [stakePopover, growthPopover, multPopover]);
+    }, 350);
+  }, [isLoggedIn, price, buying, tradeType, durVal, durUnit, market, stake, growthRate, multiplier]);
 
   /* ─────────────────────────────────────────────────────────────────
-     RENDER
+     RENDER — mobile-first, matches DTrader screenshot layout
   ───────────────────────────────────────────────────────────────── */
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-white" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div className="flex flex-col h-full overflow-hidden bg-white select-none"
+      style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
 
-      {/* ── TOP HEADER: Trade type chips + Account ────────────────── */}
-      <div className="flex items-center border-b border-gray-100 bg-white shrink-0" style={{ minHeight: "56px" }}>
-
-        {/* Trade type chips — scrollable, no scrollbar */}
-        <div className="flex items-center gap-3 px-4 overflow-x-auto no-scrollbar flex-1 min-w-0" style={{ minHeight: "56px" }}>
-          {TRADE_TYPES.map(tt => (
-            <button
-              key={tt.id}
-              onClick={() => setTypeId(tt.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap shrink-0 transition-all border ${
-                typeId === tt.id
-                  ? "bg-[#ff444f] border-[#ff444f] text-white shadow-sm"
-                  : "bg-transparent border-gray-200 text-gray-600 hover:border-gray-400 hover:text-gray-800"
-              }`}
-            >
-              {tt.isHot && (
-                <Flame className={`w-3.5 h-3.5 ${typeId === tt.id ? "text-orange-200" : "text-orange-400"}`} />
-              )}
-              {tt.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Account header */}
-        <div className="shrink-0 flex items-center gap-2 pr-4 pl-2 border-l border-gray-100 ml-2">
-          {isLoggedIn ? (
-            <>
-              <div className="text-right">
-                <div className="text-[10px] text-gray-400 leading-none">Real account</div>
-                <div className="text-sm font-bold text-gray-900 leading-tight mt-0.5">
-                  {balance ?? "0.00"} {cur}
-                </div>
-              </div>
-              <button className="bg-[#ff444f] text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-[#d93d47] transition-colors">
-                Deposit
-              </button>
-            </>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setAuthSheet(true)}
-                className="text-xs font-bold text-gray-700 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-              >
-                Log in
-              </button>
-              <button
-                onClick={() => setAuthSheet(true)}
-                className="text-xs font-bold text-white bg-[#ff444f] px-3 py-1.5 rounded-lg hover:bg-[#d93d47] transition-colors"
-              >
-                Sign up
-              </button>
+      {/* ── MARKET HEADER CARD ──────────────────────────────────── */}
+      <div className="bg-white border-b border-gray-100 px-4 py-2.5 shrink-0">
+        <button
+          onClick={() => setMktSheet(true)}
+          className="flex items-center gap-3 w-full text-left hover:bg-gray-50 rounded-xl px-2 py-1.5 -mx-2 transition-colors"
+        >
+          {/* Market icon placeholder (100 badge) */}
+          <div className="relative shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center text-white font-bold text-xs leading-none">
+              100
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── MAIN GRID: Chart | Trade Params ───────────────────────── */}
-      <div className="flex-1 overflow-hidden flex">
-
-        {/* LEFT — Chart column */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
-          {/* Market selector bar */}
-          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-white shrink-0">
-            <button
-              onClick={() => setMarketSheet(true)}
-              className="flex items-center gap-2 hover:bg-gray-50 rounded-lg px-2 py-1.5 transition-colors"
-            >
-              <div>
-                <div className="text-sm font-bold text-gray-900 leading-none">{market.short}</div>
-                <div className="text-[11px] text-gray-400 leading-none mt-0.5">{market.label}</div>
-              </div>
-              <ChevronDown className="w-4 h-4 text-gray-400" />
-            </button>
-            <div className="text-right">
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+              <div className="w-2 h-2 bg-white rounded-full" />
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold text-gray-900 leading-tight">{market.label}</div>
+            <div className="flex items-center gap-1.5 mt-0.5">
               {price != null ? (
                 <>
-                  <div className={`text-base font-bold font-mono leading-none ${
-                    dir === "up" ? "text-[#4bb4b3]" : dir === "down" ? "text-[#ec3f3f]" : "text-gray-900"
-                  }`}>
+                  <span className="text-xs text-gray-500 font-mono">
                     {price.toFixed(market.pip)}
-                  </div>
-                  <div className={`text-[11px] font-medium leading-none mt-0.5 ${
-                    change.dir === "up" ? "text-[#4bb4b3]" : change.dir === "down" ? "text-[#ec3f3f]" : "text-gray-400"
+                    {" - "}
+                    <span className={change.dir === "up" ? "text-green-500" : change.dir === "down" ? "text-red-500" : "text-gray-400"}>
+                      {change.val} ({change.pct}%)
+                    </span>
+                  </span>
+                  <span className={`text-[10px] font-bold ${
+                    dir === "up" ? "text-green-500" : dir === "down" ? "text-red-500" : "text-gray-400"
                   }`}>
-                    {change.dir === "up" ? "+" : change.dir === "down" ? "-" : ""}{change.pct}%
-                  </div>
+                    {dir === "up" ? "▲" : dir === "down" ? "▼" : "●"}
+                  </span>
                 </>
               ) : (
-                <div className="text-sm text-gray-300 animate-pulse">Loading…</div>
+                <span className="text-xs text-gray-300 animate-pulse">Connecting…</span>
               )}
             </div>
           </div>
+          <ChevronDown className="w-5 h-5 text-gray-400 shrink-0" />
+        </button>
+      </div>
 
-          {/* Accumulator barrier labels on chart */}
-          {tradeType.id === "accumulators" && upperBarrier && lowerBarrier && (
-            <div className="absolute top-16 right-0 z-10 flex flex-col items-end gap-1 pointer-events-none pr-[60px]">
-              <div className="bg-[#e3f0ff] text-[#2196f3] text-[10px] font-bold px-2 py-0.5 rounded">
-                +{barrierPct}% {upperBarrier}
-              </div>
-              <div className="bg-[#e3f0ff] text-[#2196f3] text-[10px] font-bold px-2 py-0.5 rounded">
-                -{barrierPct}% {lowerBarrier}
+      {/* ── CHART ────────────────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 relative">
+        <TradingChart
+          symbol={market.id}
+          pip={market.pip}
+          showBarriers={tradeType.id === "accumulators" || tradeType.id === "multipliers"}
+          barrierPct={barrierPct}
+        />
+
+        {/* Open contracts mini button */}
+        {contracts.length > 0 && (
+          <button
+            onClick={() => setContractsOpen(true)}
+            className="absolute top-2 right-2 z-10 bg-black/70 text-white text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5"
+          >
+            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            {contracts.filter(c => c.status === "open").length} open
+          </button>
+        )}
+      </div>
+
+      {/* ── BOTTOM PARAMS PANEL ──────────────────────────────────── */}
+      <div className="shrink-0 bg-white border-t border-gray-200 flex flex-col">
+
+        {/* Drag handle + "Learn about this trade type" */}
+        <div className="flex items-center justify-between px-4 pt-2 pb-1.5">
+          <div className="flex-1 flex justify-center">
+            <div className="w-10 h-1 rounded-full bg-gray-200" />
+          </div>
+        </div>
+        <div className="px-4 pb-2">
+          <button className="text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600 transition-colors">
+            Learn about this trade type
+          </button>
+        </div>
+
+        {/* ── Trade type row ────────────────────────────────────── */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+          <div className="flex items-center gap-2">
+            {/* Accumulator / trade type icon */}
+            <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
+              <div className="w-4 h-0.5 bg-teal-500 rounded-full relative">
+                <div className="absolute -top-1 left-0 w-3 h-0.5 bg-teal-500 rotate-45 origin-left" />
+                <div className="absolute -bottom-1 left-0 w-3 h-0.5 bg-teal-500 -rotate-45 origin-left" />
               </div>
             </div>
-          )}
-
-          {/* Chart */}
-          <div className="flex-1 overflow-hidden">
-            <TradingChart
-              symbol={market.id}
-              pip={market.pip}
-              showBarriers={tradeType.id === "accumulators"}
-            />
+            <button
+              onClick={() => setTypeSheet(true)}
+              className="flex items-center gap-1 hover:bg-gray-50 rounded-lg px-1 py-0.5 -mx-1 transition-colors"
+            >
+              <span className="text-sm font-bold text-gray-900">{tradeType.label}</span>
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            </button>
           </div>
 
-          {/* Open contracts panel at bottom of chart (desktop) */}
-          {contracts.length > 0 && (
-            <div className="border-t border-gray-100 max-h-48 overflow-y-auto bg-white shrink-0">
-              <div className="px-3 py-2 flex flex-col gap-2">
-                {contracts.map(c => (
-                  <ContractCard key={c.id} c={c} onClose={id => setContracts(prev => prev.filter(x => x.id !== id))} />
-                ))}
-              </div>
+          {/* Growth rate / Multiplier selector (right of trade type row) */}
+          {tradeType.hasGrowthRate && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setGrowthSheet(true)}
+                className="flex items-center gap-1 text-sm font-bold text-gray-900 hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors"
+              >
+                {growthRate}%
+              </button>
+              <button className="text-gray-400 hover:text-gray-600">
+                <Info className="w-4 h-4" />
+              </button>
             </div>
+          )}
+          {tradeType.hasMultiplier && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setMultSheet(true)}
+                className="flex items-center gap-1 text-sm font-bold text-gray-900 hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors"
+              >
+                x{multiplier}
+              </button>
+              <button className="text-gray-400 hover:text-gray-600">
+                <Info className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          {tradeType.hasDuration && (
+            <button
+              onClick={() => setDurSheet(true)}
+              className="flex items-center gap-1 text-sm font-bold text-gray-900 hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors"
+            >
+              {durLabel}
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+          )}
+          {tradeType.hasBarrier && (
+            <button
+              onClick={() => setBarrierSheet(true)}
+              className="flex items-center gap-1 text-sm font-bold text-gray-900 hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors"
+            >
+              {barrier}
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+            </button>
           )}
         </div>
 
-        {/* RIGHT — Trade Parameters Panel (28rem fixed, matches DTrader) */}
-        <div
-          className="shrink-0 flex flex-col border-l border-gray-100 bg-white overflow-y-auto"
-          style={{ width: "min(28rem, 100vw)" }}
-        >
-          {/* Trade type tabs (Rise/Fall, Higher/Lower, etc.) */}
-          {tradeType.hasTabs && tradeType.tabs.length > 1 && (
-            <SegmentedControl
-              tabs={tradeType.tabs}
-              selectedIdx={tabIdx}
-              onSelect={setTabIdx}
+        {/* ── Stake row ─────────────────────────────────────────── */}
+        <div className="flex items-center border-t border-gray-100 px-4 py-3">
+          <button
+            onClick={() => nudgeStake(-1)}
+            className="w-9 h-9 flex items-center justify-center text-2xl font-light text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            −
+          </button>
+          <div className="flex-1 flex items-center justify-center gap-2">
+            <input
+              value={stakeStr}
+              onChange={e => setStakeStr(e.target.value)}
+              onBlur={commitStake}
+              onFocus={e => e.target.select()}
+              onKeyDown={e => e.key === "Enter" && commitStake()}
+              className="w-20 text-2xl font-bold text-gray-900 text-center bg-transparent focus:outline-none"
             />
-          )}
+            <span className="text-sm font-medium text-gray-500">{cur}</span>
+          </div>
+          <button
+            onClick={() => nudgeStake(1)}
+            className="w-9 h-9 flex items-center justify-center text-2xl font-light text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            +
+          </button>
+          <span className="ml-3 text-sm font-medium text-gray-400">Stake</span>
+        </div>
 
-          {/* ── PARAMETERS ──────────────────────────────────────── */}
-
-          {/* Duration */}
-          {tradeType.hasDuration && (
-            <div ref={null} className="relative">
-              <ParamRow
-                label="Duration"
-                value={durLabel}
-                onClick={() => setDurSheet(true)}
-              />
-            </div>
-          )}
-
-          {/* Barrier */}
-          {tradeType.hasBarrier && (
-            <ParamRow
-              label="Barrier"
-              value={barrier}
-              onClick={() => setBarrierSheet(true)}
-            />
-          )}
-
-          {/* Stake — with inline minus/plus stepper + popover chips */}
-          <div ref={stakePopRef} className="relative border-b border-gray-100">
-            <div className="flex items-center justify-between px-4 min-h-[64px]">
-              <span className="text-xs font-medium text-gray-500">Stake</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => nudgeStake(-1)}
-                  className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
-                >
-                  <Minus className="w-3.5 h-3.5 text-gray-600" />
-                </button>
-                <button
-                  onClick={() => setStakePopover(v => !v)}
-                  className="flex items-center gap-1 hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors"
-                >
-                  <input
-                    value={stakeStr}
-                    onChange={e => setStakeStr(e.target.value)}
-                    onBlur={commitStake}
-                    onFocus={e => e.target.select()}
-                    onKeyDown={e => e.key === "Enter" && commitStake()}
-                    className="w-20 text-sm font-bold text-gray-900 text-right bg-transparent focus:outline-none"
-                    onClick={e => e.stopPropagation()}
-                  />
-                  <span className="text-xs text-gray-400 font-medium">{cur}</span>
-                  <ChevronDown className="w-3 h-3 text-gray-400" />
-                </button>
-                <button
-                  onClick={() => nudgeStake(1)}
-                  className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5 text-gray-600" />
-                </button>
-              </div>
-            </div>
-            {/* Stake popover chips */}
-            {stakePopover && (
-              <div className="absolute right-4 top-full z-20 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 min-w-[220px]">
-                <ChipGrid
-                  values={STAKE_PRESETS}
-                  selected={stake}
-                  onSelect={v => { setStake(v); setStakeStr(String(v)); setStakePopover(false); }}
-                  format={v => `${v} ${cur}`}
+        {/* ── Take profit row ───────────────────────────────────── */}
+        {tradeType.hasTakeProfit && (
+          <div className="flex items-center border-t border-gray-100 px-4 py-3">
+            <button
+              onClick={() => setHasTakeProfit(v => !v)}
+              className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${
+                hasTakeProfit ? "border-[#00a79e] bg-[#00a79e]" : "border-gray-300"
+              }`}
+            >
+              {hasTakeProfit && <Check className="w-3 h-3 text-white" />}
+            </button>
+            <span className="ml-2 text-sm font-medium text-gray-800">Take profit</span>
+            {hasTakeProfit && (
+              <div className="flex items-center gap-1.5 ml-3">
+                <input
+                  value={tpStr}
+                  onChange={e => setTpStr(e.target.value)}
+                  onBlur={commitTp}
+                  onFocus={e => e.target.select()}
+                  onKeyDown={e => e.key === "Enter" && commitTp()}
+                  className="w-20 text-sm font-bold text-gray-900 text-right border border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50 focus:outline-none focus:border-[#00a79e]"
                 />
+                <span className="text-xs text-gray-400">{cur}</span>
+              </div>
+            )}
+            <div className="ml-auto">
+              <button className="text-gray-400 hover:text-gray-600">
+                <Info className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Allow Equals (Rise/Fall only) ─────────────────────── */}
+        {tradeType.hasAllowEquals && (
+          <div className="flex items-center border-t border-gray-100 px-4 py-3">
+            <button
+              onClick={() => setAllowEquals(v => !v)}
+              className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${
+                allowEquals ? "border-[#00a79e] bg-[#00a79e]" : "border-gray-300"
+              }`}
+            >
+              {allowEquals && <Check className="w-3 h-3 text-white" />}
+            </button>
+            <span className="ml-2 text-sm font-medium text-gray-800">Allow equals</span>
+          </div>
+        )}
+
+        {/* ── Max. payout + Risk Disclaimer row ────────────────── */}
+        <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 gap-4">
+          <div className="flex items-center gap-3">
+            {/* Risk Disclaimer amber pill */}
+            <button
+              onClick={() => setRiskSheet(true)}
+              className="flex items-center gap-1.5 bg-[#f6c544] rounded-lg px-3 py-1.5 hover:bg-[#e5b73e] transition-colors"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-yellow-900" />
+              <span className="text-xs font-bold text-yellow-900">Risk Disclaimer</span>
+            </button>
+          </div>
+          <div className="flex flex-col items-end gap-0.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Max. payout</span>
+              <span className="text-xs font-bold text-gray-800">
+                {tradeType.maxPayout.toLocaleString()}.00 {cur}
+              </span>
+            </div>
+            {tradeType.maxTicks && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Max. ticks</span>
+                <span className="text-xs font-bold text-gray-800">{tradeType.maxTicks} ticks</span>
               </div>
             )}
           </div>
+        </div>
 
-          {/* Multiplier */}
-          {tradeType.hasMultiplier && (
-            <div ref={multPopRef} className="relative border-b border-gray-100">
-              <button
-                onClick={() => setMultPopover(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-3 min-h-[64px] hover:bg-gray-50 transition-colors"
-              >
-                <span className="text-xs font-medium text-gray-500">Multiplier</span>
-                <span className="text-sm font-bold text-gray-900 flex items-center gap-1">
-                  x{multiplier}
-                  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                </span>
-              </button>
-              {multPopover && (
-                <div className="absolute right-4 top-full z-20 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 min-w-[220px]">
-                  <ChipGrid
-                    values={MULTIPLIERS}
-                    selected={multiplier}
-                    onSelect={v => { setMultiplier(v); setMultPopover(false); }}
-                    format={v => `x${v}`}
-                  />
-                </div>
+        {/* ── BUY / SELL BUTTONS ───────────────────────────────── */}
+        <div className="px-4 pb-4 pt-1">
+          {tradeType.buttonType === "single" ? (
+            <button
+              onClick={() => handleBuy("buy")}
+              disabled={buying || !price}
+              className="w-full py-4 rounded-xl font-bold text-base text-white transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{ background: "#00cc84" }}
+            >
+              {buying ? (
+                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Buying…</>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+                    <path d="M13 13l6 6" />
+                  </svg>
+                  Buy
+                </>
               )}
-            </div>
-          )}
-
-          {/* Growth Rate */}
-          {tradeType.hasGrowthRate && (
-            <div ref={growthPopRef} className="relative border-b border-gray-100">
+            </button>
+          ) : (
+            <div className="flex gap-2">
               <button
-                onClick={() => setGrowthPopover(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-3 min-h-[64px] hover:bg-gray-50 transition-colors"
-              >
-                <span className="text-xs font-medium text-gray-500">Growth rate</span>
-                <span className="text-sm font-bold text-gray-900 flex items-center gap-1">
-                  {growthRate}%
-                  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                </span>
-              </button>
-              {growthPopover && (
-                <div className="absolute right-4 top-full z-20 bg-white border border-gray-200 rounded-xl shadow-lg mt-1">
-                  <ChipGrid
-                    values={GROWTH_RATES}
-                    selected={growthRate}
-                    onSelect={v => { setGrowthRate(v); setGrowthPopover(false); }}
-                    format={v => `${v}%`}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Take Profit toggle + input */}
-          {tradeType.hasTakeProfit && (
-            <div className="border-b border-gray-100">
-              <div className="flex items-center justify-between px-4 py-3 min-h-[64px]">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setHasTakeProfit(v => !v)}
-                    className={`w-10 h-5 rounded-full transition-colors relative ${
-                      hasTakeProfit ? "bg-[#ff444f]" : "bg-gray-200"
-                    }`}
-                  >
-                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
-                      hasTakeProfit ? "left-[calc(100%-18px)]" : "left-0.5"
-                    }`} />
-                  </button>
-                  <span className="text-xs font-medium text-gray-500">Take profit</span>
-                </div>
-                {hasTakeProfit && (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      value={takeProfitStr}
-                      onChange={e => setTpStr(e.target.value)}
-                      onBlur={commitTp}
-                      onFocus={e => e.target.select()}
-                      onKeyDown={e => e.key === "Enter" && commitTp()}
-                      className="w-20 text-sm font-bold text-gray-900 text-right bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-[#ff444f]"
-                    />
-                    <span className="text-xs text-gray-400 font-medium">{cur}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Allow Equals (Rise/Fall) */}
-          {tradeType.hasAllowEquals && (
-            <div className="flex items-center justify-between px-4 py-3 min-h-[56px] border-b border-gray-100">
-              <span className="text-xs font-medium text-gray-500">Allow equals</span>
-              <button
-                onClick={() => setAllowEquals(v => !v)}
-                className={`w-10 h-5 rounded-full transition-colors relative ${
-                  allowEquals ? "bg-[#ff444f]" : "bg-gray-200"
-                }`}
-              >
-                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
-                  allowEquals ? "left-[calc(100%-18px)]" : "left-0.5"
-                }`} />
-              </button>
-            </div>
-          )}
-
-          {/* ── Payout / Max Payout info row ─────────────────────── */}
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="text-xs text-gray-400">
-              {tradeType.id === "accumulators" ? "Max. payout" : "Est. payout"}
-            </span>
-            <span className="text-sm font-bold text-gray-800">
-              {tradeType.id === "accumulators"
-                ? `${maxPayout.toLocaleString()} ${cur}`
-                : `${estPayout.toFixed(2)} ${cur}`}
-            </span>
-          </div>
-
-          {/* Stake recap line (DTrader shows "− 10 USD + Stake" style) */}
-          {tradeType.id !== "accumulators" && (
-            <div className="px-4 py-2 flex items-center gap-1.5 border-b border-gray-100">
-              <span className="text-[11px] text-gray-400">−</span>
-              <span className="text-xs font-semibold text-gray-600">{stake} {cur}</span>
-              <span className="text-[11px] text-gray-300 mx-1">·</span>
-              <span className="text-[11px] text-gray-400">+</span>
-              <span className="text-xs font-semibold text-green-600">{estProfit.toFixed(2)} {cur}</span>
-              <span className="text-[11px] text-gray-300 mx-1">·</span>
-              <span className="text-[11px] text-gray-400">{retPct}% return</span>
-            </div>
-          )}
-
-          {/* ── Risk Disclaimer (Accumulators) ───────────────────── */}
-          {(tradeType.id === "accumulators" || tradeType.id === "multipliers") && (
-            <div className="px-4 py-3 border-b border-gray-100">
-              <button
-                onClick={() => setRiskSheet(true)}
-                className="w-full flex items-center gap-2 text-left"
-              >
-                <div className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                  <span className="text-amber-600 text-[10px] font-bold">!</span>
-                </div>
-                <span className="text-xs text-amber-700 font-medium">
-                  Risk Disclaimer
-                </span>
-              </button>
-            </div>
-          )}
-
-          {/* ── PURCHASE BUTTON(S) ──────────────────────────────── */}
-          <div className="p-4 mt-auto shrink-0">
-            {!tradeType.hasTabs || tradeType.tabs.length === 0 ? (
-              /* Single "Buy" button (Accumulators, single-tab Digits) */
-              <button
-                onClick={() => handleBuy("buy")}
+                onClick={() => handleBuy(tradeType.buyLabel.toLowerCase())}
                 disabled={buying || !price}
-                className="w-full py-4 rounded-xl font-bold text-base text-white transition-all disabled:opacity-50 bg-[#4bb4b3] hover:bg-[#3da09f] active:scale-95"
+                className="flex-1 py-4 rounded-xl font-bold text-sm text-white active:scale-95 disabled:opacity-50 transition-all"
+                style={{ background: tradeType.buyColor }}
               >
-                {buying ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Buying…
-                  </span>
-                ) : (
-                  <>
-                    Buy
-                    {estPayout > 0 && (
-                      <span className="ml-2 text-sm font-normal opacity-80">
-                        Payout: {estPayout.toFixed(2)} {cur}
-                      </span>
-                    )}
-                  </>
-                )}
+                {tradeType.buyLabel}
               </button>
-            ) : tradeType.tabs.length === 1 ? (
-              /* Single-tab trade (shouldn't normally happen) */
               <button
-                onClick={() => handleBuy(tradeType.tabs[0].id)}
+                onClick={() => handleBuy((tradeType.sellLabel || "sell").toLowerCase())}
                 disabled={buying || !price}
-                className="w-full py-4 rounded-xl font-bold text-base text-white bg-[#4bb4b3] hover:bg-[#3da09f] active:scale-95 disabled:opacity-50 transition-all"
+                className="flex-1 py-4 rounded-xl font-bold text-sm text-white active:scale-95 disabled:opacity-50 transition-all"
+                style={{ background: tradeType.sellColor || "#ec3f3f" }}
               >
-                {tradeType.tabs[0].label}
+                {tradeType.sellLabel}
               </button>
-            ) : (
-              /* Two-button layout: Rise↑ / Fall↓ style */
-              <div className="flex gap-2">
-                {tradeType.tabs.map((tab, i) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => { setTabIdx(i); handleBuy(tab.id); }}
-                    disabled={buying || !price}
-                    className={`flex-1 py-4 rounded-xl font-bold text-sm text-white transition-all active:scale-95 disabled:opacity-50 ${
-                      tab.color === "buy"
-                        ? "bg-[#4bb4b3] hover:bg-[#3da09f]"
-                        : "bg-[#ec3f3f] hover:bg-[#d03636]"
-                    }`}
-                  >
-                    <span className="flex flex-col items-center gap-0.5">
-                      <span>{tab.label}</span>
-                      {tradeType.id !== "digits" && tradeType.id !== "touch" && (
-                        <span className="text-[10px] font-normal opacity-80">
-                          {estPayout.toFixed(2)} {cur}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── Trade Footer info ───────────────────────────────── */}
-          <div className="px-4 pb-4 text-[11px] text-gray-400 text-center">
-            {tradeType.id === "accumulators" && (
-              <p>Your stake grows by {growthRate}% per tick while the spot price remains within ±{barrierPct}% of the entry spot.</p>
-            )}
-            {tradeType.id === "multipliers" && (
-              <p>Your profit/loss = position size × multiplier × price change. Losses are limited to your stake.</p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          BOTTOM SHEETS
+          SHEETS
       ───────────────────────────────────────────────────────────── */}
 
       {/* Market selector */}
-      <BottomSheet open={marketSheet} onClose={() => setMarketSheet(false)} title="Select Market">
+      <Sheet open={mktSheet} onClose={() => setMktSheet(false)} title="Select market">
         {MARKETS.map(m => (
           <button
             key={m.id}
-            onClick={() => { setMarket(m); setMarketSheet(false); }}
-            className={`w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0 ${
-              m.id === market.id ? "bg-[#fff5f5]" : ""
-            }`}
+            onClick={() => { setMarket(m); setMktSheet(false); }}
+            className={`w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition-colors ${m.id === market.id ? "bg-teal-50" : ""}`}
           >
             <div className="text-left">
-              <div className="text-sm font-semibold text-gray-800">{m.short}</div>
-              <div className="text-[11px] text-gray-400 mt-0.5">{m.label}</div>
+              <div className="text-sm font-semibold text-gray-900">{m.label}</div>
+              <div className="text-xs text-gray-400 mt-0.5">{m.short}</div>
             </div>
-            {m.id === market.id && <Check className="w-4 h-4 text-[#ff444f]" />}
+            {m.id === market.id && <Check className="w-4 h-4 text-[#00a79e]" />}
           </button>
         ))}
-      </BottomSheet>
+      </Sheet>
 
-      {/* Duration selector */}
-      <BottomSheet open={durSheet} onClose={() => setDurSheet(false)} title="Duration">
+      {/* Trade type selector */}
+      <Sheet open={typeSheet} onClose={() => setTypeSheet(false)} title="Trade types">
+        {TRADE_TYPES.map(tt => (
+          <button
+            key={tt.id}
+            onClick={() => { setTypeId(tt.id); setTypeSheet(false); }}
+            className={`w-full flex items-center gap-3 px-5 py-4 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition-colors ${tt.id === typeId ? "bg-teal-50" : ""}`}
+          >
+            <span className="text-xl">{tt.icon}</span>
+            <span className="text-sm font-semibold text-gray-900 flex-1 text-left">{tt.label}</span>
+            {tt.id === typeId && <Check className="w-4 h-4 text-[#00a79e]" />}
+          </button>
+        ))}
+      </Sheet>
+
+      {/* Duration sheet */}
+      <Sheet open={durSheet} onClose={() => setDurSheet(false)} title="Duration">
         <div className="p-4">
           <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
             {DURATION_UNITS.map((u, i) => (
@@ -1084,69 +853,125 @@ export default function ManualTraders() {
                 key={u.id}
                 onClick={() => { setDurUnitIdx(i); setDurVal(u.presets[0]); }}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-colors ${
-                  durUnitIdx === i
-                    ? "bg-[#ff444f] border-[#ff444f] text-white"
-                    : "bg-white border-gray-200 text-gray-600 hover:border-gray-400"
+                  durUnitIdx === i ? "bg-[#00a79e] border-[#00a79e] text-white" : "bg-white border-gray-200 text-gray-600"
                 }`}
               >
                 {u.label}
               </button>
             ))}
           </div>
-          <ChipGrid
-            values={durUnit.presets}
-            selected={durVal}
-            onSelect={v => { setDurVal(v); setDurSheet(false); }}
-            format={v => `${v} ${durUnit.label.toLowerCase().replace(/s$/, "") + (v !== 1 ? "s" : "")}`}
-          />
-        </div>
-      </BottomSheet>
-
-      {/* Barrier selector */}
-      <BottomSheet open={barrierSheet} onClose={() => setBarrierSheet(false)} title="Barrier">
-        <div className="p-4">
-          <div className="flex flex-wrap gap-2 mb-4">
-            {["Above spot", "Below spot"].map(type => (
+          <div className="flex flex-wrap gap-2">
+            {durUnit.presets.map(v => (
               <button
-                key={type}
-                className="px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-200 text-gray-600 hover:border-gray-400"
+                key={v}
+                onClick={() => { setDurVal(v); setDurSheet(false); }}
+                className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                  durVal === v ? "bg-[#00a79e] border-[#00a79e] text-white" : "bg-white border-gray-200 text-gray-700 hover:border-gray-400"
+                }`}
               >
-                {type}
+                {v} {durUnit.label.toLowerCase().replace(/s$/, "") + (v !== 1 ? "s" : "")}
               </button>
             ))}
           </div>
-          <ChipGrid
-            values={BARRIER_PRESETS.map(b => b.value)}
-            selected={barrier}
-            onSelect={v => { setBarrier(v); setBarrierSheet(false); }}
-          />
         </div>
-      </BottomSheet>
+      </Sheet>
+
+      {/* Growth rate sheet */}
+      <Sheet open={growthSheet} onClose={() => setGrowthSheet(false)} title="Growth rate">
+        <div className="p-4 space-y-2">
+          <p className="text-xs text-gray-400 mb-4">The growth rate determines how much your stake grows with each successful tick.</p>
+          {GROWTH_RATES.map(r => (
+            <button
+              key={r}
+              onClick={() => { setGrowthRate(r); setGrowthSheet(false); }}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-colors ${
+                r === growthRate ? "border-[#00a79e] bg-teal-50" : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              <span className="text-sm font-semibold text-gray-900">{r}%</span>
+              {r === growthRate && <Check className="w-4 h-4 text-[#00a79e]" />}
+            </button>
+          ))}
+        </div>
+      </Sheet>
+
+      {/* Multiplier sheet */}
+      <Sheet open={multSheet} onClose={() => setMultSheet(false)} title="Multiplier">
+        <div className="p-4 flex flex-wrap gap-2">
+          {MULTIPLIERS.map(m => (
+            <button
+              key={m}
+              onClick={() => { setMultiplier(m); setMultSheet(false); }}
+              className={`px-4 py-2.5 rounded-full text-sm font-semibold border transition-colors ${
+                m === multiplier ? "bg-[#00a79e] border-[#00a79e] text-white" : "bg-white border-gray-200 text-gray-700 hover:border-gray-400"
+              }`}
+            >
+              x{m}
+            </button>
+          ))}
+        </div>
+      </Sheet>
+
+      {/* Barrier sheet */}
+      <Sheet open={barrierSheet} onClose={() => setBarrierSheet(false)} title="Barrier">
+        <div className="p-4">
+          <div className="flex gap-2 mb-4">
+            {["Above spot", "Below spot"].map(t => (
+              <button key={t} className="px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-200 text-gray-600 hover:border-gray-400">
+                {t}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {["+0.01", "+0.02", "+0.05", "+0.10", "+0.20", "+0.50", "+1.00"].map(b => (
+              <button
+                key={b}
+                onClick={() => { setBarrier(b); setBarrierSheet(false); }}
+                className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                  barrier === b ? "bg-[#00a79e] border-[#00a79e] text-white" : "bg-white border-gray-200 text-gray-700 hover:border-gray-400"
+                }`}
+              >
+                {b}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Sheet>
 
       {/* Risk disclaimer */}
-      <BottomSheet open={riskSheet} onClose={() => setRiskSheet(false)} title="Risk Disclaimer">
-        <div className="p-5 space-y-3">
+      <Sheet open={riskSheet} onClose={() => setRiskSheet(false)} title="Risk Disclaimer">
+        <div className="p-5 space-y-4">
           <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-              <span className="text-amber-600 font-bold">!</span>
-            </div>
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
             <div className="text-sm text-gray-700 leading-relaxed">
               {tradeType.id === "accumulators"
-                ? "Accumulator contracts can result in rapid gains or complete loss of stake if the spot price exits the barrier range. Please trade responsibly."
-                : "Multiplier contracts amplify both profits and losses. Your entire stake can be lost if the market moves against your position."}
+                ? "Accumulator contracts can result in rapid gains or complete loss of stake. Your stake grows by the selected growth rate per tick while spot price stays within the barrier range."
+                : "This product carries a high risk of losing your stake. Only trade with money you can afford to lose."}
             </div>
           </div>
           <p className="text-xs text-gray-400">
-            Options and CFDs are complex instruments and come with a high risk of losing money rapidly due to leverage.
+            Options and multipliers are complex instruments. Past performance is not indicative of future results.
           </p>
           <button
             onClick={() => setRiskSheet(false)}
-            className="w-full py-3 bg-[#ff444f] text-white font-bold rounded-xl hover:bg-[#d93d47] transition-colors"
+            className="w-full py-3.5 bg-[#00a79e] text-white font-bold rounded-xl hover:bg-[#009188] transition-colors"
           >
             I understand
           </button>
         </div>
-      </BottomSheet>
+      </Sheet>
+
+      {/* Open contracts */}
+      <Sheet open={contractsOpen} onClose={() => setContractsOpen(false)} title={`Open positions (${contracts.length})`}>
+        <div className="p-4 flex flex-col gap-3">
+          {contracts.length === 0
+            ? <p className="text-sm text-gray-400 text-center py-8">No open positions</p>
+            : contracts.map(c => (
+                <ContractCard key={c.id} c={c} onClose={id => setContracts(prev => prev.filter(x => x.id !== id))} />
+              ))
+          }
+        </div>
+      </Sheet>
 
       {/* Auth gate */}
       <AuthGateModal open={authSheet} onClose={() => setAuthSheet(false)} />
