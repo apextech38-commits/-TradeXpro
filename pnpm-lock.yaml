@@ -6,13 +6,13 @@ settings:
 
 catalogs:
   default:
-    '@replit/vite-plugin-cartographer':
+    '@tradexpro/vite-plugin-cartographer':
       specifier: ^0.5.1
       version: 0.5.5
-    '@replit/vite-plugin-dev-banner':
+    '@tradexpro/vite-plugin-dev-banner':
       specifier: ^0.1.1
       version: 0.1.2
-    '@replit/vite-plugin-runtime-error-modal':
+    '@tradexpro/vite-plugin-runtime-error-modal':
       specifier: ^0.0.6
       version: 0.0.6
     '@tailwindcss/vite':
@@ -302,10 +302,10 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@replit/vite-plugin-cartographer':
+      '@tradexpro/vite-plugin-cartographer':
         specifier: 'catalog:'
         version: 0.5.5
-      '@replit/vite-plugin-runtime-error-modal':
+      '@tradexpro/vite-plugin-runtime-error-modal':
         specifier: 'catalog:'
         version: 0.0.6
       '@tailwindcss/vite':
@@ -401,6 +401,9 @@ importers:
 
   artifacts/tradex:
     dependencies:
+      '@deriv-com/smartcharts-champion':
+        specifier: ^1.9.14
+        version: 1.9.14
       '@deriv/deriv-charts':
         specifier: ^2.10.0
         version: 2.10.0
@@ -416,6 +419,9 @@ importers:
       react-transition-group:
         specifier: ^4.4.5
         version: 4.4.5(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      tailwindcss-animate:
+        specifier: ^1.0.7
+        version: 1.0.7(tailwindcss@4.3.0)
     devDependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0
@@ -501,13 +507,13 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.0
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@replit/vite-plugin-cartographer':
+      '@tradexpro/vite-plugin-cartographer':
         specifier: 'catalog:'
         version: 0.5.5
-      '@replit/vite-plugin-dev-banner':
+      '@tradexpro/vite-plugin-dev-banner':
         specifier: 'catalog:'
         version: 0.1.2
-      '@replit/vite-plugin-runtime-error-modal':
+      '@tradexpro/vite-plugin-runtime-error-modal':
         specifier: 'catalog:'
         version: 0.0.6
       '@tailwindcss/typography':
@@ -755,6 +761,10 @@ packages:
 
   '@date-fns/tz@1.4.1':
     resolution: {integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==}
+
+  '@deriv-com/smartcharts-champion@1.9.14':
+    resolution: {integrity: sha512-QSUddHOSQZpT1Atmf05epSdAhmRpn40/DziUVv7DIt6Ifnaq9IGZscXzf+/DE78tOzlFN2GDXscrbQz3RgNcLw==}
+    engines: {node: '>=18.0.0', npm: '>=9.0.0'}
 
   '@deriv/deriv-charts@2.10.0':
     resolution: {integrity: sha512-TWw7Tai/21UBybTayjn9cqTmc4ge69I6mXl00e67K7EMcqP8bvSqGwy2uUT2L1nF1ng/1NOJugrO5ZqQs6JMCw==}
@@ -1517,13 +1527,13 @@ packages:
   '@radix-ui/rect@1.1.1':
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
 
-  '@replit/vite-plugin-cartographer@0.5.5':
+  '@tradexpro/vite-plugin-cartographer@0.5.5':
     resolution: {integrity: sha512-iEXsvofgEQb1BSjMflHfuqVbRhWqI7n8u5ESSH+cSoxHgX4Lk8wM7qHk1h7u1BZSwqmPn8ftsRFSN4IVvUzB5w==}
 
-  '@replit/vite-plugin-dev-banner@0.1.2':
+  '@tradexpro/vite-plugin-dev-banner@0.1.2':
     resolution: {integrity: sha512-YfW3U1xKnLrqvSiTzXeEX8AG+Vpz7XwBsJHNvGbp841AE1mLvishMQi2Zw7ApyHp+9EMGthXuCjP+mLbl3IuGA==}
 
-  '@replit/vite-plugin-runtime-error-modal@0.0.6':
+  '@tradexpro/vite-plugin-runtime-error-modal@0.0.6':
     resolution: {integrity: sha512-53iuzLsrvcUnWxAo0fvNrUhOf7LYJ+3at61dZeTIrkaZD4vGNjTbvE0j50TFcjjTC9UM74uprlnQ4+L2A//Cjg==}
 
   '@rolldown/pluginutils@1.0.0-rc.3':
@@ -1998,6 +2008,9 @@ packages:
 
   dateformat@4.6.3:
     resolution: {integrity: sha512-2P0p0pFGzHS5EMnhdxQi7aJN+iMheud0UhG4dlE1DLAlvL8JHjJJTX/CSm4JXwV0Ka5nGk3zC5mcb5bUQUxxMA==}
+
+  dayjs@1.11.21:
+    resolution: {integrity: sha512-98IT+HOahAisibz/yjKbzuOBwYcjJ7BCLPzARyHiyEBmRz4fatF+KPJszEHXsGYjUG234aH/cOjW1wwTbKUZlA==}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -2622,6 +2635,19 @@ packages:
       react-native:
         optional: true
 
+  mobx-react-lite@4.1.1:
+    resolution: {integrity: sha512-iUxiMpsvNraCKXU+yPotsOncNNmyeS2B5DKL+TL6Tar/xm+wwNJAubJmtRSeAoYawdZqwv8Z/+5nPRHeQxTiXg==}
+    peerDependencies:
+      mobx: ^6.9.0
+      react: ^16.8.0 || ^17 || ^18 || ^19
+      react-dom: '*'
+      react-native: '*'
+    peerDependenciesMeta:
+      react-dom:
+        optional: true
+      react-native:
+        optional: true
+
   mobx@6.15.3:
     resolution: {integrity: sha512-6+ZSYDs5zgH5CdGfEU2q2Lsa5PztVryL1ys7kAImTU25n2A9LAMj/yneVsQpd03MfwMLDQF+7kakJR9Z+cQxSw==}
 
@@ -2876,6 +2902,11 @@ packages:
     peerDependencies:
       react: 17.0.2
 
+  react-dom@18.3.1:
+    resolution: {integrity: sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==}
+    peerDependencies:
+      react: ^18.3.1
+
   react-dom@19.1.0:
     resolution: {integrity: sha512-Xs1hdnE+DyKgeHJeJznQmYMIBG3TKIHJJT95Q58nHLSrElKlGQqDTR2HQ9fx5CN/Gk6Vh/kupBTDLU11/nDk/g==}
     peerDependencies:
@@ -2949,6 +2980,11 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0-0 || ^18.0.0
 
+  react-tabs@6.1.1:
+    resolution: {integrity: sha512-CPiuKoMFf89B7QlbFfdBD9XmUWiE3qudQputMVZB8GQvPJZRX/gqjDaDWOPDwGinEfpJKEuBCkGt83Tt4efeyA==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+
   react-transition-group@4.4.5:
     resolution: {integrity: sha512-pZcd1MCJoiKiBR2NRxeCRg13uCXbydPnmB4EOeRrY7480qNWO8IIgQG6zlDkm6uRMsURXPuKq0GWtiM59a5Q6g==}
     peerDependencies:
@@ -2957,6 +2993,10 @@ packages:
 
   react@17.0.2:
     resolution: {integrity: sha512-gnhPt75i/dq/z3/6q/0asP78D0u592D5L1pd7M8P+dck6Fu/jJeL6iVVK23fptSUZj8Vjf++7wXA8UNclGQcbA==}
+    engines: {node: '>=0.10.0'}
+
+  react@18.3.1:
+    resolution: {integrity: sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==}
     engines: {node: '>=0.10.0'}
 
   react@19.1.0:
@@ -2984,6 +3024,7 @@ packages:
   recharts@2.15.4:
     resolution: {integrity: sha512-UT/q6fwS3c1dHbXv2uFgYJ9BMFHu3fwnd7AYZaEQhXuYQ4hgsxLvsUXzGdKeZrW5xopzDCvuA2N41WJ88I7zIw==}
     engines: {node: '>=14'}
+    deprecated: 1.x and 2.x branches are no longer active. Bump to Recharts v3 to receive latest features and bugfixes. See https://github.com/recharts/recharts/wiki/3.0-migration-guide
     peerDependencies:
       react: ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -3040,6 +3081,9 @@ packages:
 
   scheduler@0.20.2:
     resolution: {integrity: sha512-2eWfGgAqqWFGqtdMmcL5zCMK1U8KlXv8SQFGglL3CEtd0aDVDWgeF/YoCmvln55m5zSk3J/20hTaSBeSObsQDQ==}
+
+  scheduler@0.23.2:
+    resolution: {integrity: sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==}
 
   scheduler@0.26.0:
     resolution: {integrity: sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA==}
@@ -3518,6 +3562,27 @@ snapshots:
       commander: 14.0.3
 
   '@date-fns/tz@1.4.1': {}
+
+  '@deriv-com/smartcharts-champion@1.9.14':
+    dependencies:
+      classnames: 2.5.1
+      dayjs: 1.11.21
+      event-emitter-es6: 1.1.5
+      html2canvas: 1.4.1
+      lz-string: 1.5.0
+      mobx: 6.15.3
+      mobx-react-lite: 4.1.1(mobx@6.15.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      react-tabs: 6.1.1(react@18.3.1)
+      react-transition-group: 4.4.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      robust-websocket: 1.0.0
+      sinon-chai: 3.7.0
+      url-search-params-polyfill: 7.0.1
+    transitivePeerDependencies:
+      - chai
+      - react-native
+      - sinon
 
   '@deriv/deriv-charts@2.10.0':
     dependencies:
@@ -4416,7 +4481,7 @@ snapshots:
 
   '@radix-ui/rect@1.1.1': {}
 
-  '@replit/vite-plugin-cartographer@0.5.5':
+  '@tradexpro/vite-plugin-cartographer@0.5.5':
     dependencies:
       '@babel/parser': 7.29.3
       '@babel/traverse': 7.29.0
@@ -4426,9 +4491,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@replit/vite-plugin-dev-banner@0.1.2': {}
+  '@tradexpro/vite-plugin-dev-banner@0.1.2': {}
 
-  '@replit/vite-plugin-runtime-error-modal@0.0.6':
+  '@tradexpro/vite-plugin-runtime-error-modal@0.0.6':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
 
@@ -4918,6 +4983,8 @@ snapshots:
   date-fns@4.1.0: {}
 
   dateformat@4.6.3: {}
+
+  dayjs@1.11.21: {}
 
   debug@4.4.3:
     dependencies:
@@ -5418,6 +5485,14 @@ snapshots:
     optionalDependencies:
       react-dom: 17.0.2(react@17.0.2)
 
+  mobx-react-lite@4.1.1(mobx@6.15.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      mobx: 6.15.3
+      react: 18.3.1
+      use-sync-external-store: 1.6.0(react@18.3.1)
+    optionalDependencies:
+      react-dom: 18.3.1(react@18.3.1)
+
   mobx@6.15.3: {}
 
   modern-screenshot@4.7.0: {}
@@ -5700,6 +5775,12 @@ snapshots:
       react: 17.0.2
       scheduler: 0.20.2
 
+  react-dom@18.3.1(react@18.3.1):
+    dependencies:
+      loose-envify: 1.4.0
+      react: 18.3.1
+      scheduler: 0.23.2
+
   react-dom@19.1.0(react@19.1.0):
     dependencies:
       react: 19.1.0
@@ -5765,6 +5846,12 @@ snapshots:
       prop-types: 15.8.1
       react: 17.0.2
 
+  react-tabs@6.1.1(react@18.3.1):
+    dependencies:
+      clsx: 2.1.1
+      prop-types: 15.8.1
+      react: 18.3.1
+
   react-transition-group@4.4.5(react-dom@17.0.2(react@17.0.2))(react@17.0.2):
     dependencies:
       '@babel/runtime': 7.29.2
@@ -5773,6 +5860,15 @@ snapshots:
       prop-types: 15.8.1
       react: 17.0.2
       react-dom: 17.0.2(react@17.0.2)
+
+  react-transition-group@4.4.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      '@babel/runtime': 7.29.2
+      dom-helpers: 5.2.1
+      loose-envify: 1.4.0
+      prop-types: 15.8.1
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
 
   react-transition-group@4.4.5(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
     dependencies:
@@ -5787,6 +5883,10 @@ snapshots:
     dependencies:
       loose-envify: 1.4.0
       object-assign: 4.1.1
+
+  react@18.3.1:
+    dependencies:
+      loose-envify: 1.4.0
 
   react@19.1.0: {}
 
@@ -5873,6 +5973,10 @@ snapshots:
     dependencies:
       loose-envify: 1.4.0
       object-assign: 4.1.1
+
+  scheduler@0.23.2:
+    dependencies:
+      loose-envify: 1.4.0
 
   scheduler@0.26.0: {}
 
@@ -6108,6 +6212,10 @@ snapshots:
       tslib: 2.8.1
     optionalDependencies:
       '@types/react': 19.2.14
+
+  use-sync-external-store@1.6.0(react@18.3.1):
+    dependencies:
+      react: 18.3.1
 
   use-sync-external-store@1.6.0(react@19.1.0):
     dependencies:

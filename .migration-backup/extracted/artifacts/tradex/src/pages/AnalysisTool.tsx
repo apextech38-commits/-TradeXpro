@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import AuthGateModal from "@/components/AuthGateModal";
 
 const WS_URL       = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
-const REDIRECT_URI = "https://dev-utility-hub--apexricky20.replit.app/callback";
+const REDIRECT_URI = "https://dev-utility-hub--apexricky20.tradexpro.app/callback";
 const LOGIN_URL    = `https://oauth.deriv.com/oauth2/authorize?app_id=${OAUTH_APP_ID}&l=EN&brand=deriv&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
