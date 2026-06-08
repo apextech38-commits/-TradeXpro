@@ -13,23 +13,8 @@ import type { IChartApi, ISeriesApi, UTCTimestamp } from "lightweight-charts";
 const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
 
 /* ─── colour tokens (dark theme matching smarttradex.site) ─── */
-const C = {
-  bg:        "#0e1824",
-  panel:     "#131f2e",
-  card:      "#1a2a3a",
-  border:    "#243447",
-  text:      "#e8edf2",
-  muted:     "#6b8099",
-  accent:    "#00cc84",
-  accentHov: "#00b876",
-  blue:      "#2196f3",
-  amber:     "#f6c544",
-  red:       "#ec3f3f",
-};
+const C = { bg: "hsl(var(--background))", panel: "hsl(var(--card))", card: "hsl(var(--card))", border: "hsl(var(--border))", text: "hsl(var(--foreground))", muted: "hsl(var(--muted-foreground))", accent: "hsl(var(--primary))", accentHov: "hsl(var(--accent))", blue: "hsl(var(--primary))", red: "#ec3f3f", amber: "#f6c544" };
 
-/* ─────────────────────────────────────────────────────────────
-   MARKETS
-───────────────────────────────────────────────────────────── */
 const MARKETS = [
   { label: "Volatility 100 (1s) Index", short: "V100(1s)", id: "1HZ100V", pip: 2 },
   { label: "Volatility 100 Index",       short: "V 100",    id: "R_100",   pip: 2 },
@@ -162,9 +147,9 @@ function DarkChart({ symbol, pip, barrierPct, showBarriers }: {
     if (!chartRef.current || !overlayRef.current || !lastPx.current || !showBarriers) return;
     try {
       const p = lastPx.current;
-      const ps = chartRef.current.priceScale("right");
-      const yU = ps.priceToCoordinate(p * (1 + barrierPct / 100));
-      const yL = ps.priceToCoordinate(p * (1 - barrierPct / 100));
+      const ps = chartRef.current.priceScale("right") as any;
+      const yU = ps?.priceToCoordinate(p * (1 + barrierPct / 100));
+      const yL = ps?.priceToCoordinate(p * (1 - barrierPct / 100));
       if (yU != null && yL != null && yL > yU) {
         overlayRef.current.style.top    = `${yU}px`;
         overlayRef.current.style.height = `${yL - yU}px`;
@@ -411,7 +396,6 @@ export default function ManualTraders() {
 
   /* state */
   const [market,         setMarket]        = useState(MARKETS[0]);
-  const [typeId,         setTypeId]        = useState("accumulators");
   const [stake,          setStake]         = useState(10);
   const [stakeStr,       setStakeStr]      = useState("10");
   const [growthRate,     setGrowthRate]    = useState(3);
@@ -431,6 +415,7 @@ export default function ManualTraders() {
   const [typeSheet,      setTypeSheet]     = useState(false);
   const [durSheet,       setDurSheet]      = useState(false);
   const [growthSheet,    setGrowthSheet]   = useState(false);
+  const [typeId,          setTypeId]        = useState(TRADE_TYPES[0].id);
   const [multSheet,      setMultSheet]     = useState(false);
   const [barrierSheet,   setBarrierSheet]  = useState(false);
   const [authSheet,      setAuthSheet]     = useState(false);
@@ -481,7 +466,7 @@ export default function ManualTraders() {
       const id  = `C${Date.now()}`;
       setContracts(prev=>[{
         id,label:tradeType.label,subType,symbol:market.short,
-        stake,payout,status:"open",expiresAt:Date.now()+durMs,
+        stake:stake,payout:payout,status:("open" as "open"|"won"|"lost"),expiresAt:Date.now()+durMs,
       },...prev].slice(0,8));
       setBuying(false);
       setTimeout(()=>{
@@ -549,7 +534,6 @@ export default function ManualTraders() {
           symbol={market.id}
           pip={market.pip}
           barrierPct={barrierPct}
-          showBarriers={tradeType.id === "accumulators" || tradeType.id === "multipliers"}
         />
 
         {/* open positions badge */}
@@ -891,9 +875,9 @@ export default function ManualTraders() {
           <div className="flex gap-3">
             <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{color:C.amber}}/>
             <p className="text-sm leading-relaxed" style={{color:C.text}}>
-              {tradeType.id==="accumulators"
-                ?"Accumulator contracts can result in rapid gains or complete loss of your stake. Your stake grows by the selected growth rate per tick while the spot price stays within the barrier range. If the spot price exits the range, you lose your stake."
-                :"This product carries a high risk of losing your stake. Only trade with money you can afford to lose. Options and multipliers are complex instruments."}
+                {typeId==="accumulators"
+                  ?"Accumulator contracts can result in rapid gains or complete loss of your stake. Your stake grows by the selected growth rate per tick while the spot price stays within the barrier range. If the spot price exits the range, you lose your stake."
+                  :"This product carries a high risk of losing your stake. Only trade with money you can afford to lose. Options and multipliers are complex instruments."}
             </p>
           </div>
           <p className="text-xs" style={{color:C.muted}}>Past performance is not indicative of future results.</p>
