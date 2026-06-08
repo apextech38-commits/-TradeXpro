@@ -30,19 +30,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@tradexpro/vite-plugin-cartographer").then((m) =>
-            m.cartographer({
-              root: path.resolve(import.meta.dirname, ".."),
-            }),
-          ),
-          await import("@tradexpro/vite-plugin-dev-banner").then((m) =>
-            m.          ),
-        ]
-      : []),
-  ],
+      ],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
