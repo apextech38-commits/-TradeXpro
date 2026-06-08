@@ -41,7 +41,6 @@ packages:
   - scripts
 
 catalog:
-  '@tradexpro/vite-plugin-cartographer': ^0.5.1
   '@tradexpro/vite-plugin-dev-banner': ^0.1.1
   '@tradexpro/vite-plugin-runtime-error-modal': ^0.0.6
   '@tailwindcss/vite': ^4.1.14

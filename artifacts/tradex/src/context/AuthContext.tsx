@@ -9,8 +9,8 @@ import {
 } from "react";
 
 // Registered Deriv App ID — used for both WebSocket streaming and OAuth login
-export const DERIV_APP_ID = "129077";
-export const OAUTH_APP_ID = "129077";
+export const DERIV_APP_ID = "33ughhvgt1oGUBQQZEeD";
+export const OAUTH_APP_ID = "33ughhvgt1oGUBQQZEeD";
 
 const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
 const SIGNUP_URL = `https://deriv.com/signup/?lang=EN`;
