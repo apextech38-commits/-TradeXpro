@@ -1,0 +1,12 @@
+var R=require("../../chunks/ssr/[turbopack]_runtime.js")("server/app/_not-found/page.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0t83ytb._.js")
+R.c("server/chunks/ssr/046l_next_dist_esm_build_templates_app-page_0wbefw..js")
+R.c("server/chunks/ssr/[root-of-the-server]__0cak~62._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0g2ffdp._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0-s7yo7._.js")
+R.c("server/chunks/ssr/046l_next_dist_client_components_0lv79e3._.js")
+R.c("server/chunks/ssr/046l_next_dist_client_components_builtin_forbidden_0gf44vx.js")
+R.c("server/chunks/ssr/046l_next_dist_client_components_builtin_unauthorized_0.lorks.js")
+R.c("server/chunks/ssr/manual-traders-app__next-internal_server_app__not-found_page_actions_06-i-vk.js")
+R.m(71948)
+module.exports=R.m(71948).exports
