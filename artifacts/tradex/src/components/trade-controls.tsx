@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { EndTimePicker } from '@/components/custom/end-time-picker';
-import type { DerivWS, ActiveSymbol, ProposalInfo, BuyResult } from '@deriv/core';
+import type { DerivWS, ActiveSymbol, ProposalInfo, BuyResult } from '@/lib/deriv-core';
 import type { Direction, DurationSelectUnit, DurationOption } from '../lib/types';
 
 interface TradeControlsProps {

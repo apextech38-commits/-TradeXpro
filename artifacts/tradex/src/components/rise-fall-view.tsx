@@ -1,12 +1,12 @@
 'use client';
 
-import dynamic from 'next/dynamic';
+import { lazy as dynamic } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Footer } from '@/components/custom/footer';
 import { Header } from '@/components/custom/header';
 import { ThemeToggle } from '@/components/custom/theme-toggle';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useIsMobile } from '@/hooks/use-is-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useContractMarkers } from '@/hooks/use-contract-markers';
 import { TradeControls } from './trade-controls';
 import type {
@@ -16,7 +16,7 @@ import type {
   ProposalInfo,
   BuyResult,
   DerivWS,
-} from '@deriv/core';
+} from '@/lib/deriv-core';
 import type { Direction, DurationSelectUnit, DurationOption } from '../lib/types';
 import type { UseSmartChartsApiReturn } from '@/hooks/use-smartcharts-api';
 import type { SmartChartChartData } from '@/hooks/use-smartchart-chart-data';

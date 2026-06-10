@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { ActiveSymbol, DerivWS } from '@deriv/core';
+import type { ActiveSymbol, DerivWS } from '@/lib/deriv-core';
 import {
   getMarketDisplayName,
   getSubmarketDisplayName,

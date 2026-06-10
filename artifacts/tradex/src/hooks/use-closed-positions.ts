@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { DerivWS } from '@deriv/core';
+import type { DerivWS } from '@/lib/deriv-core';
 
 export interface ClosedPosition {
   contract_id: number;

@@ -2,9 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { Play, Square, ChevronUp, ChevronDown, X } from "lucide-react";
 import { useBot } from "@/context/BotContext";
 import { useAuth } from "@/context/AuthContext";
-import { DERIV_APP_ID } from "@/context/AuthContext";
+import { OAUTH_APP_ID } from "@/context/AuthContext";
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
+const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`;
 const TOKEN_KEY = "deriv_token";
 
 function useClock() {

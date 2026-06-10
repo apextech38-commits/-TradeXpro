@@ -4,13 +4,13 @@ import {
   TrendingUp, TrendingDown, Clock, CheckCircle2, AlertCircle,
 } from "lucide-react";
 import AuthGateModal from "@/components/AuthGateModal";
-import { useAuth, DERIV_APP_ID } from "@/context/AuthContext";
+import { useAuth, OAUTH_APP_ID } from "@/context/AuthContext";
 import {
   createChart, ColorType, AreaSeries, LineSeries, LineStyle,
 } from "lightweight-charts";
 import type { IChartApi, ISeriesApi, UTCTimestamp } from "lightweight-charts";
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
+const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`;
 
 /* ─── colour tokens (dark theme matching smarttradex.site) ─── */
 const C = { bg: "hsl(var(--background))", panel: "hsl(var(--card))", card: "hsl(var(--card))", border: "hsl(var(--border))", text: "hsl(var(--foreground))", muted: "hsl(var(--muted-foreground))", accent: "hsl(var(--primary))", accentHov: "hsl(var(--accent))", blue: "hsl(var(--primary))", red: "#ec3f3f", amber: "#f6c544" };

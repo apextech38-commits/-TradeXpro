@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
-import type { DerivWS } from '@deriv/core';
+import type { DerivWS } from '@/lib/deriv-core';
 
 export interface SmartChartsSubscribeParams {
   symbol: string;

@@ -20,10 +20,10 @@ const SIGNUP_URL = `https://deriv.com/signup/?lang=EN`;
 // back to the root, where React is actually running. The acct1 param that
 // Deriv appends is what App.tsx uses to detect the OAuth callback.
 // Change this line in AuthContext.tsx
-const REDIRECT_URI = `https://tradexpro.co.ke/callback`;const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${OAUTH_APP_ID}&l=EN&brand=deriv&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+const REDIRECT_URI = "https://scaling-rotary-phone-q745p74g9gj5f9gr7-5173.app.github.dev/callback";
+const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${OAUTH_APP_ID}&l=EN&brand=deriv&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
 const TOKEN_KEY = "deriv_token";
 const ACCOUNTS_KEY = "tradex-deriv-accounts";
-
 export interface DerivAccount {
   account: string;
   token: string;

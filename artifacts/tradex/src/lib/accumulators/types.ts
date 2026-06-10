@@ -9,7 +9,7 @@ export type {
   ProposalInfo,
   BuyResponse,
   BuyResult,
-} from '@deriv/core';
+} from '@/lib/deriv-core';
 
 export type { OpenPosition } from '@/hooks/use-open-positions';
 export type { ClosedPosition } from '@/hooks/use-closed-positions';

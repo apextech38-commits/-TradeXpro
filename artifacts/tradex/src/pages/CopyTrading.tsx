@@ -3,10 +3,10 @@ import { X, BookOpen, RefreshCw, UserPlus, AlertCircle, CheckCircle2, Loader2 } 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
-import { DERIV_APP_ID } from "@/context/AuthContext";
+import { OAUTH_APP_ID } from "@/context/AuthContext";
 
-const WS_URL   = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
-const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${DERIV_APP_ID}&l=EN&brand=deriv`;
+const WS_URL   = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`;
+const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${OAUTH_APP_ID}&l=EN&brand=deriv`;
 const TOKEN_KEY = "deriv_token";
 
 // ─── Inline toast ─────────────────────────────────────────────────────────────

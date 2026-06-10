@@ -1,9 +1,9 @@
 import { useRef, useEffect } from "react";
 import { SmartChart, setSmartChartsPublicPath } from "@deriv/deriv-charts";
 import "@deriv/deriv-charts/dist/smartcharts.css";
-import { DERIV_APP_ID } from "@/context/AuthContext";
+import { OAUTH_APP_ID } from "@/context/AuthContext";
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
+const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`;
 
 setSmartChartsPublicPath(import.meta.env.BASE_URL + "smartcharts-chunks/");
 

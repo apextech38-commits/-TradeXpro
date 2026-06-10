@@ -5,9 +5,9 @@ import {
 import type {
   IChartApi, ISeriesApi, UTCTimestamp, IPriceLine,
 } from "lightweight-charts";
-import { DERIV_APP_ID } from "@/context/AuthContext";
+import { OAUTH_APP_ID } from "@/context/AuthContext";
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
+const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`;
 
 /* ── Design tokens (traderkit.pro dark chart palette) ─────────────────── */
 const BG        = "#0f172a";

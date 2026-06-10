@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { DerivWS } from '@deriv/core';
+import type { DerivWS } from '@/lib/deriv-core';
 
 interface SellResponse {
   sell: {

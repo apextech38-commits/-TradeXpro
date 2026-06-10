@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useProposal, useBuy } from '@deriv/core';
+import { useProposal, useBuy } from '@/lib/deriv-core';
 import type {
   DerivWS,
   ActiveSymbol,
@@ -9,7 +9,7 @@ import type {
   ProposalInfo,
   ProposalParams,
   BuyResult,
-} from '@deriv/core';
+} from '@/lib/deriv-core';
 import { useBaseTrading } from '@/hooks/use-base-trading';
 import type { UseBaseTradingParams } from '@/hooks/use-base-trading';
 import type { Direction, DurationSelectUnit, DurationOption, OpenPosition, ClosedPosition } from '../lib/types';

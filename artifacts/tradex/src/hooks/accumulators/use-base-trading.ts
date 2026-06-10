@@ -2,8 +2,8 @@
 
 import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { useActiveSymbols, useTicks } from '@deriv/core';
-import type { DerivWS, ActiveSymbol, Tick, DurationLimits, ContractInfo } from '@deriv/core';
+import { useActiveSymbols, useTicks } from '@/lib/deriv-core';
+import type { DerivWS, ActiveSymbol, Tick, DurationLimits, ContractInfo } from '@/lib/deriv-core';
 import { useOpenPositions, type OpenPosition } from './use-open-positions';
 import { useClosedPositions, type ClosedPosition } from './use-closed-positions';
 import { useSellContract } from './use-sell-contract';

@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { DERIV_APP_ID } from "../context/AuthContext";
+import { OAUTH_APP_ID } from "../context/AuthContext";
 import { X, Radio } from "lucide-react";
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
+const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`;
 
 const MARKETS = [
   { symbol: "R_10",     name: "Volatility 10 Index" },
