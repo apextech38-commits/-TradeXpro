@@ -47,7 +47,7 @@ function AppContent() {
 
   const _pathname = window.location.pathname.replace(/\/$/, "");
   const _search   = new URLSearchParams(window.location.search);
-  const isCallback = _pathname.endsWith("/callback") || _search.has("acct1");
+  const isCallback = _pathname.endsWith("/callback") ;
   if (isCallback) return <Callback />;
 
   if (loading) {
