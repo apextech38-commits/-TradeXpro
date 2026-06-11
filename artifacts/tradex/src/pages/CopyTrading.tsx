@@ -189,7 +189,7 @@ export default function CopyTrading() {
   // ── Start Demo → Real ────────────────────────────────────────────────────
   const handleStartDemoToReal = () => {
     if (!isLoggedIn) {
-      window.location.href = OAUTH_URL;
+      window.location.href = window.location.origin + "/#/dashboard";
       return;
     }
     // Find a real (non-virtual) account — VRTC prefix = virtual, CR prefix = real

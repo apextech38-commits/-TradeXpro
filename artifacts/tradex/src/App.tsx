@@ -1,15 +1,16 @@
-import { useState, useEffect } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/context/AuthContext";
 import { BotProvider } from "@/context/BotContext";
-
-import LoadingScreen from "@/components/LoadingScreen";
-import Navbar, { TABS } from "@/components/Navbar";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/toaster";
+import Navbar from "@/components/Navbar";
 import BottomBar from "@/components/BottomBar";
 import AIScanner from "@/components/AIScanner";
+import LoadingScreen from "@/components/LoadingScreen";
+import { useState } from "react";
 
 import Dashboard from "@/pages/Dashboard";
 import BotBuilder from "@/pages/BotBuilder";
@@ -26,56 +27,33 @@ const queryClient = new QueryClient();
 
 function AppContent() {
   const [loading, setLoading] = useState(true);
-  const initTab = (() => {
-    const p = new URLSearchParams(window.location.search).get("tab");
-    if (p) {
-      const found = TABS.find(t => t.toLowerCase().replace(/\s+/g, "-") === p.toLowerCase());
-      if (found) return found;
-    }
-    return TABS[0];
-  })();
-  const [activeTab, setActiveTab] = useState(initTab);
+  const location = useLocation();
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const tab = (e as CustomEvent<string>).detail;
-      if (TABS.includes(tab)) setActiveTab(tab);
-    };
-    window.addEventListener("tradex:navigate", handler);
-    return () => window.removeEventListener("tradex:navigate", handler);
-  }, []);
-
-  const _pathname = window.location.pathname.replace(/\/$/, "");
-  const _search   = new URLSearchParams(window.location.search);
-  const isCallback = _pathname.endsWith("/callback") ;
-  if (isCallback) return <Callback />;
+  if (location.pathname === "/callback") {
+    return <Callback />;
+  }
 
   if (loading) {
     return <LoadingScreen onComplete={() => setLoading(false)} />;
   }
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case "Dashboard":      return <Dashboard />;
-      case "Bot Builder":    return <BotBuilder />;
-      case "Manual Traders": return <ManualTraders />;
-      case "Charts":         return <Charts />;
-      case "Trading Bots":   return <TradingBots />;
-      case "Analysis Tool":  return <AnalysisTool />;
-      case "Strategies":     return <Strategies />;
-      case "Copy Trading":   return <CopyTrading />;
-      case "TradingView":    return <TradingView />;
-      default:               return <Dashboard />;
-    }
-  };
-
   return (
     <div className="min-h-screen w-full bg-background text-foreground font-sans flex flex-col pt-[80px] pb-[52px]">
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Navbar />
       <main className="flex-1 flex flex-col w-full h-full overflow-y-auto">
-        <div key={activeTab} className="tradex-page-enter flex-1 flex flex-col w-full h-full">
-          {renderContent()}
-        </div>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/botbuilder" element={<BotBuilder />} />
+          <Route path="/manualtraders" element={<ManualTraders />} />
+          <Route path="/charts" element={<Charts />} />
+          <Route path="/tradingbots" element={<TradingBots />} />
+          <Route path="/analysistool" element={<AnalysisTool />} />
+          <Route path="/strategies" element={<Strategies />} />
+          <Route path="/copytrading" element={<CopyTrading />} />
+          <Route path="/tradingview" element={<TradingView />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </main>
       <BottomBar />
       <AIScanner />
@@ -90,7 +68,9 @@ function App() {
         <BotProvider>
           <QueryClientProvider client={queryClient}>
             <TooltipProvider>
-              <AppContent />
+              <HashRouter>
+                <AppContent />
+              </HashRouter>
               <Toaster />
             </TooltipProvider>
           </QueryClientProvider>

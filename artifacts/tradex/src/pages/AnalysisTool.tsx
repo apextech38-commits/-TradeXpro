@@ -949,7 +949,7 @@ function ApexAITab() {
   };
 
   const handleAnalyze = () => {
-    if (!isLoggedIn) { window.location.href = LOGIN_URL; return; }
+    if (!isLoggedIn) { window.location.href = window.location.origin + "/#/dashboard"; return; }
     const token = localStorage.getItem("deriv_token");
     if (!token) { setStatus("Please log in first"); return; }
     setStatus("Getting proposal..."); setPayout(null); setPropId(null);

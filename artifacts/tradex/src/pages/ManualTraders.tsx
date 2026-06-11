@@ -1,5 +1,5 @@
-import RiseFallView from '@/components/rise-fall-view';
-import TradeControls from '@/components/trade-controls';
+import { RiseFallView } from '@/components/rise-fall-view';
+import { TradeControls } from '@/components/trade-controls';
 
 export default function ManualTraders() {
   return (
