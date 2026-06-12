@@ -1,1 +1,6 @@
+/*.js   /:splat.js   200
+/*.css  /:splat.css  200
+/*.map  /:splat.map  200
+/*.svg  /:splat.svg  200
+/*.wasm /:splat.wasm 200
 /* /index.html 200
