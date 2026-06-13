@@ -3,7 +3,7 @@ export default function ManualTraders() {
     <iframe
       src="/manualtraders/"
       title="Manual Traders"
-      style={{ width: "100%", height: "100vh", border: "none" }}
+      style={{ width: "100%", height: "calc(100vh - 56px)", border: "none" }}
     />
   );
 }
