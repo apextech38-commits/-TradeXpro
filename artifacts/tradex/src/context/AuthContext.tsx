@@ -334,8 +334,7 @@ const signup = useCallback(async () => {
   url.searchParams.set("state", state);
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
-  url.searchParams.set("prompt", "registration");
-
+url.searchParams.set("action", "signup");
   window.location.href = url.toString();
 }, []);
   const logout = () => {
