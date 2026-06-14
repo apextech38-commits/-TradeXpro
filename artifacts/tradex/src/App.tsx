@@ -29,9 +29,6 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const location = useLocation();
 
-  if (location.pathname === "/callback") {
-    return <Callback />;
-  }
 
   if (loading) {
     return <LoadingScreen onComplete={() => setLoading(false)} />;

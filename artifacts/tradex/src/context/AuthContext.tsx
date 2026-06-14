@@ -209,6 +209,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+
+  // Handle Deriv OAuth redirect — acct1/token1/cur1 params land at root URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('acct1')) return;
+    const accts: DerivAccount[] = [];
+    let i = 1;
+    while (params.has(`acct${i}`)) {
+      const account = params.get(`acct${i}`) || '';
+      const token = params.get(`token${i}`) || '';
+      const currency = params.get(`cur${i}`) || 'USD';
+      if (account && token) accts.push({ account, token, currency });
+      i++;
+    }
+    if (accts.length === 0) return;
+    localStorage.setItem(TOKEN_KEY, accts[0].token);
+    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accts));
+    setAccounts(accts);
+    setActiveAccount(accts[0]);
+    connect(accts[0].token);
+    // Clean URL
+    window.history.replaceState(null, '', window.location.pathname);
+  }, [connect]);
+
   const login = () => {
     window.location.href = OAUTH_URL;
   };
