@@ -7,7 +7,7 @@ import type {
 } from "lightweight-charts";
 import { OAUTH_APP_ID } from "@/context/AuthContext";
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`;
+const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public`;
 
 /* ── Design tokens (traderkit.pro dark chart palette) ─────────────────── */
 const BG        = "#0f172a";

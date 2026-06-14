@@ -12,7 +12,7 @@ import {
 export const DERIV_APP_ID = "33ughhvgt1oGUBQQZEeD";
 export const OAUTH_APP_ID = "33ughhvgt1oGUBQQZEeD";
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
+const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public`;
 const SIGNUP_URL = `https://deriv.com/signup/?lang=EN`;
 
 // FIX: Use root URL instead of /callback path.
