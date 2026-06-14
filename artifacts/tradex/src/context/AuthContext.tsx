@@ -8,8 +8,8 @@ import {
   ReactNode,
 } from "react";
 
-export const DERIV_APP_ID = "33ughhvgtxloGwBQQZEeD";
-export const OAUTH_APP_ID = "33ughhvgtxloGwBQQZEeD";
+export const DERIV_APP_ID = "33ughhvgtxloGWBQQZEeD";
+export const OAUTH_APP_ID = "33ughhvgtxloGWBQQZEeD";
 
 const API_BASE = "https://api.derivws.com/trading/v1/options";
 const AUTH_ENDPOINT = "https://auth.deriv.com/oauth2/auth";

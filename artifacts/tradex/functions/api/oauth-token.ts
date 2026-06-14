@@ -21,7 +21,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         grant_type: "authorization_code",
-        client_id: "33ughhvgtxloGwBQQZEeD",
+        client_id: "33ughhvgtxloGWBQQZEeD",
         code,
         code_verifier,
         redirect_uri,
