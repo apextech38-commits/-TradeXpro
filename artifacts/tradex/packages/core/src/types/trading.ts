@@ -119,4 +119,6 @@ export interface ProposalParams {
   currency: string;
   barrier?: number;
   dateExpiry?: number;
+  growthRate?: number;
+  limitOrder?: { takeProfit?: number };
 }

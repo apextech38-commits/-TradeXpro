@@ -48,7 +48,12 @@ export function useProposal(
     if (params.barrier !== undefined) {
       payload.barrier = params.barrier;
     }
-
+if (params.growthRate !== undefined) {
+  payload.growth_rate = params.growthRate;
+}
+if (params.limitOrder?.takeProfit !== undefined) {
+  payload.limit_order = { take_profit: params.limitOrder.takeProfit };
+}
     ws.subscribe(payload, (data) => {
       if (cancelled) return;
       const resp = data as unknown as ProposalResponse;
