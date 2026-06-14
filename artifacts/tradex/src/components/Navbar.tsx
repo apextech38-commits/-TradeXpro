@@ -27,6 +27,15 @@ const TAB_ICONS: TabDef[] = [
   { label: "TradingView",   Icon: Monitor,         route: "/tradingview" },
 ];
 
+function accountLabel(acct: { account: string; account_type?: string }) {
+  if (acct.account_type === "demo") return "Demo";
+  if (acct.account_type === "real") return "Real";
+  // fallback: infer from prefix (DOT = demo, ROT = real)
+  if (acct.account.startsWith("DOT")) return "Demo";
+  if (acct.account.startsWith("ROT")) return "Real";
+  return acct.account;
+}
+
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -92,11 +101,13 @@ export default function Navbar() {
               <button
                 data-testid="account-menu-button"
                 onClick={() => setShowAccountMenu(v => !v)}
-                className="flex items-center gap-1.5 py-1.5 bg-[#1E90FF]/10 hover:bg-[#1E90FF]/20 border border-[#1E90FF]/30 rounded-md transition-colors"
+                className="flex items-center gap-1.5 px-2 py-1.5 bg-[#1E90FF]/10 hover:bg-[#1E90FF]/20 border border-[#1E90FF]/30 rounded-md transition-colors"
               >
                 <span className={`w-2 h-2 rounded-full shrink-0 ${wsConnected && isAuthorized ? "bg-[#22C55E]" : "bg-[#F59E0B]"} animate-pulse`} />
                 <div className="flex flex-col items-start leading-none">
-                  <span className="text-[#6B7280]">{activeAccount?.account || "Account"}</span>
+                  <span className="text-xs font-semibold text-[#1A1A1A]">
+                    {activeAccount ? accountLabel(activeAccount) : "Account"}
+                  </span>
                   <span className={`text-sm font-bold ${balance !== null ? "text-[#1E90FF]" : "text-[#6B7280]"}`}>
                     {formattedBalance ?? "—"}
                   </span>
@@ -106,7 +117,7 @@ export default function Navbar() {
               {showAccountMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowAccountMenu(false)} />
-                  <div className="absolute right-0 mt-1 z-50 w-64 bg-white border border-[#E5E7EB] rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="absolute right-0 mt-1 z-50 w-64 bg-white border border-[#E5E7EB] rounded-xl shadow-xl overflow-hidden">
                     <div className="px-4 py-3 border-b border-[#E5E7EB] bg-[#F4F6FA] flex items-center gap-2">
                       {wsConnected && isAuthorized
                         ? <><Wifi className="w-4 h-4 text-[#22C55E]" /><span className="text-xs text-[#22C55E] font-medium">Live — Connected to Deriv</span></>
@@ -122,9 +133,18 @@ export default function Navbar() {
                       >
                         <div className="flex items-center gap-2">
                           <User className="w-4 h-4" />
-                          <span>{acct.account}</span>
+                          <div className="flex flex-col items-start">
+                            <span className="font-semibold">{accountLabel(acct)}</span>
+                            <span className="text-[10px] text-[#6B7280]">{acct.account}</span>
+                          </div>
                         </div>
-                        <span className="text-xs text-[#6B7280] px-1.5 py-0.5 bg-[#F4F6FA] rounded">{acct.currency}</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          acct.account_type === "demo"
+                            ? "bg-[#F59E0B]/15 text-[#F59E0B]"
+                            : "bg-[#22C55E]/15 text-[#22C55E]"
+                        }`}>
+                          {acct.currency}
+                        </span>
                       </button>
                     ))}
                     <div className="border-t border-[#E5E7EB]">
@@ -168,7 +188,7 @@ export default function Navbar() {
                 key={label}
                 data-testid={`tab-${label.toLowerCase().replace(/\s+/g, "-")}`}
                 onClick={() => navigate(route)}
-                className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-0 $ shrink-0 ${
+                className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded shrink-0 ${
                   isActive
                     ? "bg-[#1E90FF] text-white shadow-sm"
                     : "bg-transparent text-[#9CA3AF] hover:text-white hover:bg-white/10"
