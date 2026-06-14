@@ -9,8 +9,8 @@ import {
 } from "react";
 
 // Registered Deriv App ID — used for both WebSocket streaming and OAuth login
-export const DERIV_APP_ID = "33ughhvgt1oGUBQQZEeD";
-export const OAUTH_APP_ID = "33ughhvgt1oGUBQQZEeD";
+export const DERIV_APP_ID = "33ughhvgtxloGwBQQZEeD";
+export const OAUTH_APP_ID = "33ughhvgtxloGwBQQZEeD";
 
 const API_BASE = "https://api.derivws.com/trading/v1/options";
 const SIGNUP_URL = `https://deriv.com/signup/?lang=EN`;
