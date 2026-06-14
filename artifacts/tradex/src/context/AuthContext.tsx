@@ -12,7 +12,7 @@ import {
 export const DERIV_APP_ID = "33ughhvgt1oGUBQQZEeD";
 export const OAUTH_APP_ID = "33ughhvgt1oGUBQQZEeD";
 
-const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public`;
+const API_BASE = "https://api.derivws.com/trading/v1/options";
 const SIGNUP_URL = `https://deriv.com/signup/?lang=EN`;
 
 // FIX: Use root URL instead of /callback path.
@@ -100,107 +100,163 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const connect = useCallback((token: string) => {
+  const connect = useCallback((account: DerivAccount) => {
     if (wsRef.current) {
       wsRef.current.onclose = null;
       wsRef.current.close();
     }
 
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      if (!mountedRef.current) return;
-      setWsConnected(true);
-      ws.send(JSON.stringify({ authorize: token }));
-    };
-
-    ws.onmessage = (event) => {
-      if (!mountedRef.current) return;
+    (async () => {
+      let otpUrl: string;
       try {
-        const msg = JSON.parse(event.data);
-        if (msg.error) return;
-
-        switch (msg.msg_type) {
-          case "authorize": {
-            setIsAuthorized(true);
-            const info = msg.authorize;
-            setActiveAccount((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    account: info.loginid || prev.account,
-                    currency: info.currency || prev.currency,
-                  }
-                : null,
-            );
-            setCurrency(info.currency || "USD");
-            ws.send(
-              JSON.stringify({ balance: 1, account: "current", subscribe: 1 }),
-            );
-            ws.send(JSON.stringify({ statement: 1, limit: 50 }));
-            ws.send(
-              JSON.stringify({
-                active_symbols: "brief",
-                product_type: "basic",
-              }),
-            );
-            ws.send(JSON.stringify({ ticks: "R_10", subscribe: 1 }));
-            ws.send(
-              JSON.stringify({
-                trading_durations: 1,
-                underlying: "R_100",
-                contract_type: "ALL",
-              }),
-            );
-            break;
-          }
-          case "balance": {
-            setBalance(msg.balance?.balance ?? null);
-            setCurrency(msg.balance?.currency || "USD");
-            break;
-          }
-          case "statement": {
-            const txns: StatementTrade[] = (msg.statement?.transactions ?? [])
-              .filter((t: Record<string, unknown>) => t.action_type === "buy" || t.action_type === "sell")
-              .slice(0, 5)
-              .map((t: Record<string, unknown>) => ({
-                transaction_id: t.transaction_id as number,
-                action_type: t.action_type as string,
-                amount: t.amount as number,
-                balance_after: t.balance_after as number,
-                transaction_time: t.transaction_time as number,
-                shortcode: (t.shortcode as string | undefined) ?? null,
-                contract_id: (t.contract_id as number | undefined) ?? null,
-                pnl: (t.pnl as number | undefined) ?? null,
-              }));
-            setRecentTrades(txns);
-            break;
-          }
+        // Step 1: list Options-API accounts for this token.
+        const accountsRes = await fetch(`${API_BASE}/accounts`, {
+          headers: {
+            Authorization: `Bearer ${account.token}`,
+            "Deriv-App-ID": OAUTH_APP_ID,
+          },
+        });
+        if (!accountsRes.ok) {
+          throw new Error(`Accounts request failed (${accountsRes.status})`);
         }
-      } catch (_) {}
-    };
+        const accountsJson = await accountsRes.json();
+        const optionsAccounts: Array<{ account_id: string; account_type?: string; currency?: string }> =
+          accountsJson.data ?? [];
 
-    ws.onerror = () => {
-      setWsConnected(false);
-    };
+        // OAuth login IDs (CR.../VRTC.../VRW...) don't map 1:1 to Options
+        // account_id (DOT...). Instead, use the login id's prefix to infer
+        // demo vs real, then select the matching Options account by
+        // account_type. "VR"-prefixed ids (VRTC, VRW) are virtual/demo
+        // accounts; everything else (CR, CRW, ...) is real.
+        const wantDemo = /^VR/i.test(account.account);
+        const wantedType = wantDemo ? "demo" : "real";
 
-    ws.onclose = () => {
-      if (!mountedRef.current) return;
-      setWsConnected(false);
-      setIsAuthorized(false);
-      const storedToken = localStorage.getItem(TOKEN_KEY);
-      if (storedToken) {
-        reconnectRef.current = setTimeout(() => connect(storedToken), 4000);
+        let matched =
+          optionsAccounts.find((a) => a.account_type === wantedType) ??
+          optionsAccounts.find((a) => a.currency === account.currency) ??
+          optionsAccounts[0];
+
+        if (!matched) {
+          throw new Error("No Options trading account found for this user");
+        }
+
+        // Step 2: get a one-time authenticated WebSocket URL for that account.
+        const otpRes = await fetch(
+          `${API_BASE}/accounts/${matched.account_id}/otp`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${account.token}`,
+              "Deriv-App-ID": OAUTH_APP_ID,
+            },
+          },
+        );
+        if (!otpRes.ok) {
+          throw new Error(`OTP request failed (${otpRes.status})`);
+        }
+        const otpJson = await otpRes.json();
+        otpUrl = otpJson.data.url;
+      } catch (_) {
+        if (!mountedRef.current) return;
+        setWsConnected(false);
+        setIsAuthorized(false);
+        const storedToken = localStorage.getItem(TOKEN_KEY);
+        if (storedToken) {
+          reconnectRef.current = setTimeout(() => connect(account), 4000);
+        }
+        return;
       }
-    };
+
+      if (!mountedRef.current) return;
+
+      const ws = new WebSocket(otpUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (!mountedRef.current) return;
+        setWsConnected(true);
+        // The OTP URL is already authenticated — do NOT send `authorize`.
+        setIsAuthorized(true);
+        setActiveAccount((prev) =>
+          prev
+            ? { ...prev, account: account.account, currency: prev.currency }
+            : prev,
+        );
+        ws.send(
+          JSON.stringify({ balance: 1, account: "current", subscribe: 1 }),
+        );
+        ws.send(JSON.stringify({ statement: 1, limit: 50 }));
+        ws.send(
+          JSON.stringify({
+            active_symbols: "brief",
+            product_type: "basic",
+          }),
+        );
+        ws.send(JSON.stringify({ ticks: "R_10", subscribe: 1 }));
+        ws.send(
+          JSON.stringify({
+            trading_durations: 1,
+            underlying: "R_100",
+            contract_type: "ALL",
+          }),
+        );
+      };
+
+      ws.onmessage = (event) => {
+        if (!mountedRef.current) return;
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.error) return;
+
+          switch (msg.msg_type) {
+            case "balance": {
+              setBalance(msg.balance?.balance ?? null);
+              setCurrency(msg.balance?.currency || "USD");
+              break;
+            }
+            case "statement": {
+              const txns: StatementTrade[] = (msg.statement?.transactions ?? [])
+                .filter((t: Record<string, unknown>) => t.action_type === "buy" || t.action_type === "sell")
+                .slice(0, 5)
+                .map((t: Record<string, unknown>) => ({
+                  transaction_id: t.transaction_id as number,
+                  action_type: t.action_type as string,
+                  amount: t.amount as number,
+                  balance_after: t.balance_after as number,
+                  transaction_time: t.transaction_time as number,
+                  shortcode: (t.shortcode as string | undefined) ?? null,
+                  contract_id: (t.contract_id as number | undefined) ?? null,
+                  pnl: (t.pnl as number | undefined) ?? null,
+                }));
+              setRecentTrades(txns);
+              break;
+            }
+          }
+        } catch (_) {}
+      };
+
+      ws.onerror = () => {
+        setWsConnected(false);
+      };
+
+      ws.onclose = () => {
+        if (!mountedRef.current) return;
+        setWsConnected(false);
+        setIsAuthorized(false);
+        // OTP URLs are short-lived/one-time — fetch a fresh OTP on reconnect
+        // rather than reopening the stale URL.
+        const storedToken = localStorage.getItem(TOKEN_KEY);
+        if (storedToken) {
+          reconnectRef.current = setTimeout(() => connect(account), 4000);
+        }
+      };
+    })();
   }, []);
 
   useEffect(() => {
     mountedRef.current = true;
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (token && accounts.length > 0) {
-      connect(token);
+    if (accounts.length > 0) {
+      connect(accounts[0]);
     }
     return () => {
       mountedRef.current = false;
@@ -228,7 +284,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accts));
     setAccounts(accts);
     setActiveAccount(accts[0]);
-    connect(accts[0].token);
+    connect(accts[0]);
     // Clean URL
     window.history.replaceState(null, '', window.location.pathname);
   }, [connect]);
@@ -259,7 +315,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setBalance(null);
     setRecentTrades([]);
     localStorage.setItem(TOKEN_KEY, acct.token);
-    connect(acct.token);
+    connect(acct);
   };
 
   return (
