@@ -158,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setWsConnected(true);
         setIsAuthorized(true);
         setActiveAccount(account);
-        ws.send(JSON.stringify({ balance: 1, account: "current", subscribe: 1 }));
+        ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
         ws.send(JSON.stringify({ statement: 1, limit: 50 }));
         ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
         ws.send(JSON.stringify({ ticks: "R_10", subscribe: 1 }));
