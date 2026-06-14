@@ -8,26 +8,41 @@ import {
   ReactNode,
 } from "react";
 
-// Registered Deriv App ID — used for both WebSocket streaming and OAuth login
 export const DERIV_APP_ID = "33ughhvgtxloGwBQQZEeD";
 export const OAUTH_APP_ID = "33ughhvgtxloGwBQQZEeD";
 
 const API_BASE = "https://api.derivws.com/trading/v1/options";
-const SIGNUP_URL = `https://deriv.com/signup/?lang=EN`;
-
-// FIX: Use root URL instead of /callback path.
-// TradeX PRO SPAs cannot serve sub-paths like /callback — Deriv must redirect
-// back to the root, where React is actually running. The acct1 param that
-// Deriv appends is what App.tsx uses to detect the OAuth callback.
-// Change this line in AuthContext.tsx
+const AUTH_ENDPOINT = "https://auth.deriv.com/oauth2/auth";
+const SIGNUP_URL = "https://deriv.com/signup/?lang=EN";
 const REDIRECT_URI = "https://tradexpro.co.ke";
-const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${OAUTH_APP_ID}&l=EN&brand=deriv&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-const TOKEN_KEY = "deriv_token";
+
+const TOKEN_KEY = "tradex_access_token";
 const ACCOUNTS_KEY = "tradex-deriv-accounts";
+const PKCE_VERIFIER_KEY = "tradex_pkce_verifier";
+const PKCE_STATE_KEY = "tradex_pkce_state";
+
+function generateRandom(length = 64): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  const arr = new Uint8Array(length);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => chars[b % chars.length]).join("");
+}
+
+async function sha256Base64Url(plain: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(plain);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return btoa(String.fromCharCode(...new Uint8Array(hash)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
 export interface DerivAccount {
   account: string;
   token: string;
   currency: string;
+  account_type?: "demo" | "real" | string;
 }
 
 export interface StatementTrade {
@@ -82,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   });
   const [activeAccount, setActiveAccount] = useState<DerivAccount | null>(
-    () => accounts[0] ?? null,
+    () => accounts[0] ?? null
   );
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
@@ -109,54 +124,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       let otpUrl: string;
       try {
-        // Step 1: list Options-API accounts for this token.
-        const accountsRes = await fetch(`${API_BASE}/accounts`, {
-          headers: {
-            Authorization: `Bearer ${account.token}`,
-            "Deriv-App-ID": OAUTH_APP_ID,
-          },
-        });
-        if (!accountsRes.ok) {
-          throw new Error(`Accounts request failed (${accountsRes.status})`);
-        }
-        const accountsJson = await accountsRes.json();
-        const optionsAccounts: Array<{ account_id: string; account_type?: string; currency?: string }> =
-          accountsJson.data ?? [];
-
-        // OAuth login IDs (CR.../VRTC.../VRW...) don't map 1:1 to Options
-        // account_id (DOT...). Instead, use the login id's prefix to infer
-        // demo vs real, then select the matching Options account by
-        // account_type. "VR"-prefixed ids (VRTC, VRW) are virtual/demo
-        // accounts; everything else (CR, CRW, ...) is real.
-        const wantDemo = /^VR/i.test(account.account);
-        const wantedType = wantDemo ? "demo" : "real";
-
-        let matched =
-          optionsAccounts.find((a) => a.account_type === wantedType) ??
-          optionsAccounts.find((a) => a.currency === account.currency) ??
-          optionsAccounts[0];
-
-        if (!matched) {
-          throw new Error("No Options trading account found for this user");
-        }
-
-        // Step 2: get a one-time authenticated WebSocket URL for that account.
         const otpRes = await fetch(
-          `${API_BASE}/accounts/${matched.account_id}/otp`,
+          `${API_BASE}/accounts/${account.account}/otp`,
           {
             method: "POST",
             headers: {
               Authorization: `Bearer ${account.token}`,
               "Deriv-App-ID": OAUTH_APP_ID,
             },
-          },
+          }
         );
-        if (!otpRes.ok) {
-          throw new Error(`OTP request failed (${otpRes.status})`);
-        }
+        if (!otpRes.ok) throw new Error(`OTP failed (${otpRes.status})`);
         const otpJson = await otpRes.json();
         otpUrl = otpJson.data.url;
-      } catch (_) {
+      } catch {
         if (!mountedRef.current) return;
         setWsConnected(false);
         setIsAuthorized(false);
@@ -175,31 +156,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ws.onopen = () => {
         if (!mountedRef.current) return;
         setWsConnected(true);
-        // The OTP URL is already authenticated — do NOT send `authorize`.
         setIsAuthorized(true);
-        setActiveAccount((prev) =>
-          prev
-            ? { ...prev, account: account.account, currency: prev.currency }
-            : prev,
-        );
-        ws.send(
-          JSON.stringify({ balance: 1, account: "current", subscribe: 1 }),
-        );
+        setActiveAccount(account);
+        ws.send(JSON.stringify({ balance: 1, account: "current", subscribe: 1 }));
         ws.send(JSON.stringify({ statement: 1, limit: 50 }));
-        ws.send(
-          JSON.stringify({
-            active_symbols: "brief",
-            product_type: "basic",
-          }),
-        );
+        ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
         ws.send(JSON.stringify({ ticks: "R_10", subscribe: 1 }));
-        ws.send(
-          JSON.stringify({
-            trading_durations: 1,
-            underlying: "R_100",
-            contract_type: "ALL",
-          }),
-        );
+        ws.send(JSON.stringify({ trading_durations: 1, underlying: "R_100", contract_type: "ALL" }));
       };
 
       ws.onmessage = (event) => {
@@ -207,16 +170,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const msg = JSON.parse(event.data);
           if (msg.error) return;
-
           switch (msg.msg_type) {
-            case "balance": {
+            case "balance":
               setBalance(msg.balance?.balance ?? null);
               setCurrency(msg.balance?.currency || "USD");
               break;
-            }
             case "statement": {
               const txns: StatementTrade[] = (msg.statement?.transactions ?? [])
-                .filter((t: Record<string, unknown>) => t.action_type === "buy" || t.action_type === "sell")
+                .filter(
+                  (t: Record<string, unknown>) =>
+                    t.action_type === "buy" || t.action_type === "sell"
+                )
                 .slice(0, 5)
                 .map((t: Record<string, unknown>) => ({
                   transaction_id: t.transaction_id as number,
@@ -232,19 +196,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               break;
             }
           }
-        } catch (_) {}
+        } catch {
+          // ignore malformed frames
+        }
       };
 
-      ws.onerror = () => {
-        setWsConnected(false);
-      };
+      ws.onerror = () => setWsConnected(false);
 
       ws.onclose = () => {
         if (!mountedRef.current) return;
         setWsConnected(false);
         setIsAuthorized(false);
-        // OTP URLs are short-lived/one-time — fetch a fresh OTP on reconnect
-        // rather than reopening the stale URL.
         const storedToken = localStorage.getItem(TOKEN_KEY);
         if (storedToken) {
           reconnectRef.current = setTimeout(() => connect(account), 4000);
@@ -263,38 +225,101 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       wsRef.current?.close();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-
-  // Handle Deriv OAuth redirect — acct1/token1/cur1 params land at root URL
+  // PKCE OAuth callback — reads ?code=...&state=... after auth.deriv.com redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (!params.has('acct1')) return;
-    const accts: DerivAccount[] = [];
-    let i = 1;
-    while (params.has(`acct${i}`)) {
-      const account = params.get(`acct${i}`) || '';
-      const token = params.get(`token${i}`) || '';
-      const currency = params.get(`cur${i}`) || 'USD';
-      if (account && token) accts.push({ account, token, currency });
-      i++;
+    const code = params.get("code");
+    const returnedState = params.get("state");
+    if (!code || !returnedState) return;
+
+    const storedState = sessionStorage.getItem(PKCE_STATE_KEY);
+    const codeVerifier = sessionStorage.getItem(PKCE_VERIFIER_KEY);
+    sessionStorage.removeItem(PKCE_STATE_KEY);
+    sessionStorage.removeItem(PKCE_VERIFIER_KEY);
+
+    window.history.replaceState(null, "", window.location.pathname);
+
+    if (!storedState || returnedState !== storedState) {
+      console.error("OAuth state mismatch — possible CSRF. Aborting.");
+      return;
     }
-    if (accts.length === 0) return;
-    localStorage.setItem(TOKEN_KEY, accts[0].token);
-    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accts));
-    setAccounts(accts);
-    setActiveAccount(accts[0]);
-    connect(accts[0]);
-    // Clean URL
-    window.history.replaceState(null, '', window.location.pathname);
+    if (!codeVerifier) {
+      console.error("PKCE verifier missing from sessionStorage.");
+      return;
+    }
+
+    (async () => {
+      try {
+        const tokenRes = await fetch("/api/oauth-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code, code_verifier: codeVerifier, redirect_uri: REDIRECT_URI }),
+        });
+        if (!tokenRes.ok) throw new Error(`Token exchange failed (${tokenRes.status})`);
+        const { access_token } = await tokenRes.json();
+        if (!access_token) throw new Error("No access_token in response");
+
+        localStorage.setItem(TOKEN_KEY, access_token);
+
+        const acctRes = await fetch(`${API_BASE}/accounts`, {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            "Deriv-App-ID": OAUTH_APP_ID,
+          },
+        });
+        if (!acctRes.ok) throw new Error(`Accounts fetch failed (${acctRes.status})`);
+        const { data: optionsAccounts } = await acctRes.json() as {
+          data: Array<{ account_id: string; account_type: string; currency: string }>;
+        };
+
+        if (!optionsAccounts?.length) throw new Error("No Options accounts found");
+
+        const mapped: DerivAccount[] = optionsAccounts.map((a) => ({
+          account: a.account_id,
+          token: access_token,
+          currency: a.currency || "USD",
+          account_type: a.account_type,
+        }));
+
+        const demo = mapped.find((a) => a.account_type === "demo");
+        const real = mapped.find((a) => a.account_type === "real");
+        const ordered = [demo, real, ...mapped]
+          .filter((a): a is DerivAccount => !!a)
+          .filter((a, i, arr) => arr.findIndex((x) => x.account === a.account) === i);
+
+        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(ordered));
+        setAccounts(ordered);
+        setActiveAccount(ordered[0]);
+        connect(ordered[0]);
+      } catch (err) {
+        console.error("PKCE OAuth callback error:", err);
+      }
+    })();
   }, [connect]);
 
-  const login = () => {
-    window.location.href = OAUTH_URL;
-  };
-  const signup = () => {
-    window.location.href = SIGNUP_URL;
-  };
+  const login = useCallback(async () => {
+    const codeVerifier = generateRandom(64);
+    const codeChallenge = await sha256Base64Url(codeVerifier);
+    const state = generateRandom(32);
+
+    sessionStorage.setItem(PKCE_VERIFIER_KEY, codeVerifier);
+    sessionStorage.setItem(PKCE_STATE_KEY, state);
+
+    const url = new URL(AUTH_ENDPOINT);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("client_id", OAUTH_APP_ID);
+    url.searchParams.set("redirect_uri", REDIRECT_URI);
+    url.searchParams.set("scope", "trade");
+    url.searchParams.set("state", state);
+    url.searchParams.set("code_challenge", codeChallenge);
+    url.searchParams.set("code_challenge_method", "S256");
+
+    window.location.href = url.toString();
+  }, []);
+
+  const signup = () => { window.location.href = SIGNUP_URL; };
 
   const logout = () => {
     sendWS({ logout: 1 });
