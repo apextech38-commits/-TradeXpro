@@ -13,7 +13,6 @@ export const OAUTH_APP_ID = "33ughhvgtxloGWBQQZEeD";
 
 const API_BASE = "https://api.derivws.com/trading/v1/options";
 const AUTH_ENDPOINT = "https://auth.deriv.com/oauth2/auth";
-const SIGNUP_URL = "https://deriv.com/signup/?lang=EN";
 const REDIRECT_URI = "https://tradexpro.co.ke";
 
 const TOKEN_KEY = "tradex_access_token";
@@ -319,8 +318,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = url.toString();
   }, []);
 
-  const signup = () => { window.location.href = SIGNUP_URL; };
+const signup = useCallback(async () => {
+  const codeVerifier = generateRandom(64);
+  const codeChallenge = await sha256Base64Url(codeVerifier);
+  const state = generateRandom(32);
 
+  sessionStorage.setItem(PKCE_VERIFIER_KEY, codeVerifier);
+  sessionStorage.setItem(PKCE_STATE_KEY, state);
+
+  const url = new URL(AUTH_ENDPOINT);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", OAUTH_APP_ID);
+  url.searchParams.set("redirect_uri", REDIRECT_URI);
+  url.searchParams.set("scope", "trade");
+  url.searchParams.set("state", state);
+  url.searchParams.set("code_challenge", codeChallenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  url.searchParams.set("prompt", "registration");
+
+  window.location.href = url.toString();
+}, []);
   const logout = () => {
     sendWS({ logout: 1 });
     wsRef.current?.close();
