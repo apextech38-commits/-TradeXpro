@@ -1,332 +1,406 @@
-import { useState, useRef, useEffect } from "react";
-import { Play, Square, ChevronUp, ChevronDown, X } from "lucide-react";
-import { useBot } from "@/context/BotContext";
-import { useAuth } from "@/context/AuthContext";
-import { OAUTH_APP_ID } from "@/context/AuthContext";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { OAUTH_APP_ID } from "../context/AuthContext";
+import { X, Radio } from "lucide-react";
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`;
-const TOKEN_KEY = "deriv_token";
+const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public`;
 
-function useClock() {
-  const [ts, setTs] = useState(() => new Date().toLocaleString("en-GB", {
-    year:"numeric", month:"2-digit", day:"2-digit",
-    hour:"2-digit", minute:"2-digit", second:"2-digit",
-  }));
-  useEffect(() => {
-    const id = setInterval(() => setTs(new Date().toLocaleString("en-GB", {
-      year:"numeric", month:"2-digit", day:"2-digit",
-      hour:"2-digit", minute:"2-digit", second:"2-digit",
-    })), 1000);
-    return () => clearInterval(id);
-  }, []);
-  return ts;
+const MARKETS = [
+  { symbol: "R_10",     name: "Volatility 10 Index" },
+  { symbol: "R_25",     name: "Volatility 25 Index" },
+  { symbol: "R_50",     name: "Volatility 50 Index" },
+  { symbol: "R_75",     name: "Volatility 75 Index" },
+  { symbol: "R_100",    name: "Volatility 100 Index" },
+  { symbol: "1HZ10V",   name: "Volatility 10 (1s) Index" },
+  { symbol: "1HZ25V",   name: "Volatility 25 (1s) Index" },
+  { symbol: "1HZ50V",   name: "Volatility 50 (1s) Index" },
+  { symbol: "1HZ75V",   name: "Volatility 75 (1s) Index" },
+  { symbol: "1HZ100V",  name: "Volatility 100 (1s) Index" },
+];
+
+function getLastDigit(price: number): number {
+  return parseInt(price.toFixed(2).slice(-1));
 }
 
-export default function BottomBar() {
-  const [expanded, setExpanded]             = useState(false);
-  const [activeTab, setActiveTab]           = useState("Summary");
-  const [showDisclaimer, setShowDisclaimer] = useState(false);
-  const [statusMsg, setStatusMsg]           = useState("Bot is not running");
-  const [noBot, setNoBot]                   = useState(false);
+interface ScanResult {
+  market: string;
+  symbol: string;
+  ovPct: number;
+  unPct: number;
+  score: number;
+  tradeType: string;
+}
 
-  const tradeWsRef = useRef<WebSocket | null>(null);
-  const { isLoggedIn } = useAuth();
-  const {
-    botLoaded, isRunning, params,
-    results, totalStake, totalPayout, totalProfit, won, lost, runs,
-    setIsRunning, addResult, reset,
-  } = useBot();
+export default function AIScanner() {
+  const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"ov1un8" | "ov2un7">("ov1un8");
+  const [scanDepth, setScanDepth] = useState("3000");
+  const [mode, setMode] = useState("01-08");
+  const [ticks, setTicks] = useState("3000");
+  const [selectedMarket, setSelectedMarket] = useState("Scan to find the best market");
+  const [tradeType, setTradeType] = useState("Waiting for scan");
+  const [scanning, setScanning] = useState(false);
+  const [statusText, setStatusText] = useState("Ready to scan markets");
+  const [progress, setProgress] = useState(0);
+  const [lastResult, setLastResult] = useState<ScanResult | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const resultsRef = useRef<Record<string, number[]>>({});
+  const pendingRef = useRef<Set<string>>(new Set());
 
-  const clock = useClock();
+  useEffect(() => {
+    if (activeTab === "ov1un8") {
+      setMode("01-08");
+    } else {
+      setMode("02-07");
+    }
+  }, [activeTab]);
 
-  const stopBot = () => {
-    tradeWsRef.current?.close();
-    tradeWsRef.current = null;
-    setIsRunning(false);
-    setStatusMsg("Bot stopped");
+  const closeWs = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
   };
 
-  const runBot = () => {
-    if (!botLoaded) {
-      setNoBot(true);
-      setTimeout(() => setNoBot(false), 3000);
-      return;
-    }
-    if (!isLoggedIn) {
-      setStatusMsg("Please log in to trade");
-      return;
+  const analyzeResults = useCallback(() => {
+    const isOv1 = activeTab === "ov1un8";
+    const ovThreshold = isOv1 ? 1 : 2;
+    const unThreshold = isOv1 ? 8 : 7;
+
+    let best: ScanResult | null = null;
+
+    for (const mkt of MARKETS) {
+      const digits = resultsRef.current[mkt.symbol];
+      if (!digits || digits.length < 50) continue;
+
+      const total = digits.length;
+      const ovCount = digits.filter(d => d > ovThreshold).length;
+      const unCount = digits.filter(d => d < unThreshold).length;
+      const ovPct = (ovCount / total) * 100;
+      const unPct = (unCount / total) * 100;
+      const score = (ovPct + unPct) / 2;
+
+      // Determine which trade type is better for this market
+      let tradeT = "";
+      if (ovPct >= unPct) {
+        tradeT = isOv1 ? `Over 1 (${ovPct.toFixed(1)}%)` : `Over 2 (${ovPct.toFixed(1)}%)`;
+      } else {
+        tradeT = isOv1 ? `Under 8 (${unPct.toFixed(1)}%)` : `Under 7 (${unPct.toFixed(1)}%)`;
+      }
+
+      if (!best || score > best.score) {
+        best = { market: mkt.name, symbol: mkt.symbol, ovPct, unPct, score, tradeType: tradeT };
+      }
     }
 
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      setStatusMsg("No Deriv token found — please log in");
-      return;
+    if (best) {
+      setLastResult(best);
+      setSelectedMarket(best.market);
+      setTradeType(best.tradeType);
+      setStatusText(`✓ Best market found — ${best.market} with score ${best.score.toFixed(1)}%`);
+    } else {
+      setStatusText("⚠ Insufficient data — retry scan");
     }
+  }, [activeTab]);
 
-    setIsRunning(true);
-    setStatusMsg("Connecting to Deriv...");
-    setExpanded(true);
-    setActiveTab("Summary");
+  const runDeepScan = useCallback(() => {
+    if (scanning) return;
+    setScanning(true);
+    setProgress(0);
+    setStatusText("Connecting to Deriv WebSocket...");
+    setSelectedMarket("Scanning markets...");
+    setTradeType("Scanning...");
+    resultsRef.current = {};
+    pendingRef.current = new Set(MARKETS.map(m => m.symbol));
+
+    closeWs();
 
     const ws = new WebSocket(WS_URL);
-    tradeWsRef.current = ws;
+    wsRef.current = ws;
+
+    const count = Math.min(parseInt(ticks) || 500, 2000);
+    let sent = 0;
+    let received = 0;
 
     ws.onopen = () => {
-      setStatusMsg("Authorizing...");
-      ws.send(JSON.stringify({ authorize: token }));
+      setStatusText("Scanning markets for digit patterns...");
+      for (const mkt of MARKETS) {
+        ws.send(JSON.stringify({
+          ticks_history: mkt.symbol,
+          count,
+          end: "latest",
+          style: "ticks",
+          req_id: sent++,
+        }));
+      }
     };
 
-    ws.onmessage = (evt) => {
+    ws.onmessage = (e) => {
       try {
-        const msg = JSON.parse(evt.data);
-        if (msg.error) {
-          setStatusMsg(`Error: ${msg.error.message}`);
-          setIsRunning(false);
-          return;
-        }
+        const data = JSON.parse(e.data);
+        if (data.history && data.history.prices) {
+          const symbol = data.echo_req?.ticks_history as string;
+          if (symbol) {
+            const digits = (data.history.prices as number[]).map(getLastDigit);
+            resultsRef.current[symbol] = digits;
+            pendingRef.current.delete(symbol);
+            received++;
+            const pct = Math.round((received / MARKETS.length) * 100);
+            setProgress(pct);
+            setStatusText(`Scanning... ${received}/${MARKETS.length} markets processed`);
 
-        if (msg.msg_type === "authorize") {
-          setStatusMsg("Placing trade...");
-          ws.send(JSON.stringify({
-            buy: 1,
-            subscribe: 1,
-            price: params.stake,
-            parameters: {
-              amount: params.stake,
-              basis: "stake",
-              contract_type: params.contractType,
-              currency: "USD",
-              duration: params.duration,
-              duration_unit: params.durationUnit,
-              symbol: params.symbol,
-            },
-          }));
-          return;
+            if (pendingRef.current.size === 0) {
+              analyzeResults();
+              setScanning(false);
+              closeWs();
+            }
+          }
         }
-
-        if (msg.msg_type === "buy") {
-          const b = msg.buy;
-          setStatusMsg(`Contract ${b.contract_id} open — waiting for result...`);
-          addResult({
-            id: String(b.contract_id),
-            buyPrice: b.buy_price,
-            payout: b.payout,
-            profit: null,
-            status: "open",
-            timestamp: Date.now(),
-          });
-          return;
-        }
-
-        if (msg.msg_type === "proposal_open_contract") {
-          const c = msg.proposal_open_contract;
-          if (c.is_sold) {
-            const profit = c.profit ?? 0;
-            const status = profit >= 0 ? "won" : "lost";
-            addResult({
-              id: String(c.contract_id),
-              buyPrice: c.buy_price,
-              payout: c.payout,
-              profit,
-              status,
-              timestamp: Date.now(),
-            });
-            setStatusMsg(`Contract ${status === "won" ? "WON" : "LOST"} — profit: ${profit >= 0 ? "+" : ""}${profit.toFixed(2)}`);
-            setIsRunning(false);
+        if (data.error) {
+          const sym = data.echo_req?.ticks_history as string;
+          if (sym) {
+            pendingRef.current.delete(sym);
+            received++;
+            if (pendingRef.current.size === 0) {
+              analyzeResults();
+              setScanning(false);
+              closeWs();
+            }
           }
         }
       } catch (_) {}
     };
 
     ws.onerror = () => {
-      setStatusMsg("WebSocket error — check connection");
-      setIsRunning(false);
+      setStatusText("⚠ WebSocket error — check connection");
+      setScanning(false);
     };
+
     ws.onclose = () => {
-      if (isRunning) setStatusMsg("Connection closed");
+      if (scanning && pendingRef.current.size > 0) {
+        analyzeResults();
+        setScanning(false);
+      }
     };
-  };
+
+    // Safety timeout
+    setTimeout(() => {
+      if (wsRef.current === ws) {
+        analyzeResults();
+        setScanning(false);
+        closeWs();
+      }
+    }, 20000);
+  }, [scanning, ticks, analyzeResults]);
 
   return (
     <>
-      {/* Risk Disclaimer Modal */}
-      {showDisclaimer && (
+      {/* Floating AI Button */}
+      <button
+        data-testid="ai-scanner-button"
+        onClick={() => setOpen(true)}
+        className="fixed bottom-[68px] right-4 z-50 w-14 h-14 rounded-full bg-[#8B5CF6] hover:bg-[#7c3aed] shadow-lg hover:shadow-[#8B5CF6]/40 hover:shadow-xl flex items-center justify-center transition-all active:scale-95"
+        aria-label="Open AI Scanner"
+      >
+        <span className="text-white font-bold text-sm tracking-wide">AI</span>
+        {/* Online indicator */}
+        <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#22C55E] border-2 border-white shadow-sm" />
+      </button>
+
+      {/* Modal */}
+      {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
-          onClick={e => { if (e.target === e.currentTarget) setShowDisclaimer(false); }}
+          className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
-          <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-2xl w-full max-w-sm p-6 relative">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-[#1A1A1A]">Risk Disclaimer</h2>
-              <button onClick={() => setShowDisclaimer(false)} className="p-1 text-[#6B7280] hover:text-[#1A1A1A] rounded">
+          <div className="bg-card w-full md:max-w-md rounded-t-2xl md:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col border border-border">
+
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-card shrink-0">
+              <h2 className="text-base font-bold text-foreground">Entry Scanner</h2>
+              <button
+                onClick={() => setOpen(false)}
+                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-sm text-[#1A1A1A] leading-relaxed mb-6">
-              <span className="font-bold">Important Risk Warning</span>{" "}
-              Deriv offers complex derivatives, such as options and contracts for difference ("CFDs"). These products may not be suitable for all clients, and trading them puts you at risk. You may lose some or all of the money you invest. Never trade with borrowed money or money you cannot afford to lose.
-            </p>
-            <button
-              onClick={() => setShowDisclaimer(false)}
-              className="w-full py-2.5 bg-[#1E90FF] hover:bg-[#1a7fe0] text-white font-bold rounded-lg text-sm"
-            >
-              I Understand
-            </button>
-          </div>
-        </div>
-      )}
 
-      {/* No-bot toast */}
-      {noBot && (
-        <div className="fixed bottom-[64px] left-1/2 -translate-x-1/2 z-50 bg-[#EF4444] text-white text-sm font-medium px-5 py-2.5 rounded-xl shadow-xl">
-          Please load or build a bot first
-        </div>
-      )}
+            <div className="overflow-y-auto flex-1">
+              {/* Hero Card */}
+              <div className="m-4 rounded-xl overflow-hidden relative bg-gradient-to-br from-[#0f2744] via-[#0d2257] to-[#0a1a3e] p-5 shadow-inner">
+                {/* Subtle animated rings */}
+                <div className="absolute inset-0 overflow-hidden">
+                  <div className="absolute -right-6 -top-6 w-36 h-36 rounded-full border border-white/5 animate-ping" style={{ animationDuration: "3s" }} />
+                  <div className="absolute -right-3 -top-3 w-24 h-24 rounded-full border border-white/10 animate-ping" style={{ animationDuration: "2s" }} />
+                </div>
 
-      {/* Expanded Panel */}
-      {expanded && (
-        <div className="fixed bottom-[52px] left-0 right-0 z-40 bg-[#F4F6FA] border-t border-[#E5E7EB] shadow-[0_-10px_40px_rgba(0,0,0,0.10)]">
-          <div className="flex items-center border-b border-[#E5E7EB] bg-white min-w-0">
-            {/* Tabs — scrollable horizontally on narrow screens */}
-            <div className="flex items-center overflow-x-auto no-scrollbar flex-1 min-w-0 px-4">
-              {["Summary", "Transactions", "Journal"].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`py-3 px-3 text-sm font-medium border-b-2 whitespace-nowrap shrink-0 transition-colors ${
-                    activeTab === tab
-                      ? "border-[#1E90FF] text-[#1E90FF]"
-                      : "border-transparent text-[#6B7280] hover:text-[#1A1A1A]"
-                  }`}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-            {/* Reset — always visible, never pushed off-screen */}
-            <button
-              onClick={reset}
-              className="text-xs text-[#6B7280] hover:text-[#1A1A1A] border border-[#E5E7EB] px-3 py-1 rounded hover:bg-[#F4F6FA] shrink-0 mr-3"
-            >
-              Reset
-            </button>
-          </div>
-
-          <div className="p-4">
-            {activeTab === "Summary" && (
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-                {[
-                  { label: "Total Stake",     val: totalStake.toFixed(2)  },
-                  { label: "Total Payout",    val: totalPayout.toFixed(2) },
-                  { label: "No. of Runs",     val: String(runs)           },
-                  { label: "Contracts Lost",  val: String(lost)           },
-                  { label: "Contracts Won",   val: String(won)            },
-                  {
-                    label: "Total Profit/Loss",
-                    val: (totalProfit >= 0 ? "+" : "") + totalProfit.toFixed(2),
-                    highlight: true,
-                    positive: totalProfit >= 0,
-                  },
-                ].map(stat => (
-                  <div key={stat.label} className="bg-white border border-[#E5E7EB] rounded-lg p-4 shadow-sm">
-                    <div className="text-xs text-[#6B7280] mb-1">{stat.label}</div>
-                    <div className={`text-lg font-bold ${
-                      stat.highlight
-                        ? stat.positive ? "text-[#22C55E]" : "text-[#EF4444]"
-                        : "text-[#1A1A1A]"
-                    }`}>
-                      {stat.val}
+                <div className="relative z-10 flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    {/* Badge */}
+                    <div className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-3 py-1 mb-3">
+                      <span className="text-[10px] text-white/80 font-semibold tracking-widest uppercase">Recovery Engine</span>
                     </div>
+
+                    <h3 className="text-white text-lg font-bold leading-tight mb-1">TradeX AI Scanner</h3>
+                    <p className="text-white/60 text-xs leading-relaxed">
+                      Scans Over 1 and Under 8 with recovery confirmation
+                    </p>
                   </div>
+
+                  {/* Radar animation */}
+                  <div className="shrink-0 w-16 h-16 relative flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-full border-2 border-[#8B5CF6]/40 animate-ping" style={{ animationDuration: "1.5s" }} />
+                    <div className="absolute inset-2 rounded-full border border-[#22C55E]/30 animate-ping" style={{ animationDuration: "2s", animationDelay: "0.5s" }} />
+                    <div className="w-10 h-10 rounded-full bg-[#8B5CF6]/20 border-2 border-[#8B5CF6] flex items-center justify-center">
+                      <svg viewBox="0 0 24 24" className="w-5 h-5 text-[#8B5CF6]" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="2"/>
+                        <path d="M16.24 7.76a6 6 0 0 1 0 8.49"/>
+                        <path d="M7.76 16.24a6 6 0 0 1 0-8.49"/>
+                        <path d="M20.07 3.93a10 10 0 0 1 0 16.14"/>
+                        <path d="M3.93 20.07a10 10 0 0 1 0-16.14"/>
+                      </svg>
+                    </div>
+                    {/* Sweep line */}
+                    {scanning && (
+                      <div
+                        className="absolute inset-0 rounded-full overflow-hidden"
+                        style={{ animation: "spin 2s linear infinite", transformOrigin: "center" }}
+                      >
+                        <div className="absolute top-0 left-1/2 w-0.5 h-1/2 bg-gradient-to-b from-[#22C55E] to-transparent origin-bottom" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                {scanning && (
+                  <div className="mt-4 h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#22C55E] transition-all duration-500"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Tabs */}
+              <div className="flex gap-2 mx-4 mb-4">
+                {(["ov1un8", "ov2un7"] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    data-testid={`scanner-tab-${tab}`}
+                    className={`flex-1 py-2 text-sm font-bold rounded-lg border transition-all ${
+                      activeTab === tab
+                        ? "bg-primary border-primary text-white shadow-sm"
+                        : "bg-secondary border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {tab === "ov1un8" ? "OV 1 / UN 8" : "OV 2 / UN 7"}
+                  </button>
                 ))}
               </div>
-            )}
 
-            {activeTab === "Transactions" && (
-              results.length === 0 ? (
-                <div className="h-24 flex items-center justify-center text-[#6B7280] text-sm">
-                  No transactions yet.
-                </div>
-              ) : (
-                <div className="overflow-auto max-h-48 space-y-2">
-                  {results.map(r => (
-                    <div key={r.id} className="flex items-center justify-between bg-white border border-[#E5E7EB] rounded-lg px-4 py-2 text-sm">
-                      <span className="text-[#6B7280] font-mono text-xs">#{r.id}</span>
-                      <span className="text-[#1A1A1A]">Stake: {r.buyPrice.toFixed(2)}</span>
-                      <span className={`font-semibold px-2 py-0.5 rounded text-xs ${
-                        r.status === "won" ? "bg-[#22C55E]/10 text-[#22C55E]" :
-                        r.status === "lost" ? "bg-[#EF4444]/10 text-[#EF4444]" :
-                        "bg-[#1E90FF]/10 text-[#1E90FF]"
-                      }`}>
-                        {r.status === "open" ? "Open" : r.status === "won" ? `+${r.profit?.toFixed(2)}` : r.profit?.toFixed(2)}
-                      </span>
+              <div className="px-4 space-y-4 pb-4">
+                {/* Three inputs */}
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Scan Depth", val: scanDepth, set: setScanDepth, id: "scan-depth" },
+                    { label: "Mode", val: mode, set: setMode, id: "mode" },
+                    { label: "Ticks", val: ticks, set: setTicks, id: "ticks" },
+                  ].map(({ label, val, set, id }) => (
+                    <div key={id} className="space-y-1">
+                      <label className="text-xs text-muted-foreground font-medium">{label}</label>
+                      <input
+                        data-testid={`scanner-${id}`}
+                        value={val}
+                        onChange={e => set(e.target.value)}
+                        className="w-full h-9 bg-background border border-border rounded-lg px-2 text-sm text-foreground text-center font-mono focus:outline-none focus:border-primary"
+                      />
                     </div>
                   ))}
                 </div>
-              )
-            )}
 
-            {activeTab === "Journal" && (
-              <div className="h-24 flex items-center justify-center text-[#6B7280] text-sm">
-                No journal entries yet.
+                {/* Two wider fields */}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground font-medium">Selected Market</label>
+                  <div
+                    data-testid="scanner-selected-market"
+                    className={`w-full h-10 bg-background border border-border rounded-lg px-3 text-sm flex items-center font-medium transition-colors ${
+                      scanning ? "text-[#FACC15] animate-pulse" :
+                      lastResult ? "text-[#22C55E]" : "text-muted-foreground"
+                    }`}
+                  >
+                    {selectedMarket}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground font-medium">Trade Type</label>
+                  <div
+                    data-testid="scanner-trade-type"
+                    className={`w-full h-10 bg-background border border-border rounded-lg px-3 text-sm flex items-center font-semibold transition-colors ${
+                      scanning ? "text-[#FACC15] animate-pulse" :
+                      lastResult ? "text-primary" : "text-muted-foreground"
+                    }`}
+                  >
+                    {tradeType}
+                  </div>
+                </div>
+
+                {/* Status row */}
+                <div className="flex items-center gap-2 py-2">
+                  <Radio className={`w-4 h-4 shrink-0 ${scanning ? "text-[#22C55E] animate-pulse" : lastResult ? "text-[#22C55E]" : "text-muted-foreground"}`} />
+                  <span className={`text-xs ${scanning ? "text-[#22C55E]" : "text-muted-foreground"}`}>
+                    {statusText}
+                  </span>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-3 pt-1 pb-2">
+                  <button
+                    data-testid="scanner-deep-scan"
+                    onClick={runDeepScan}
+                    disabled={scanning}
+                    className={`h-11 rounded-xl font-bold text-sm text-white transition-all flex items-center justify-center gap-2 ${
+                      scanning
+                        ? "bg-primary/60 cursor-not-allowed"
+                        : "bg-primary hover:bg-primary/90 shadow-sm hover:shadow-md active:scale-95"
+                    }`}
+                  >
+                    {scanning ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                        Scanning...
+                      </>
+                    ) : (
+                      <>
+                        <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <circle cx="11" cy="11" r="8"/>
+                          <path d="m21 21-4.35-4.35"/>
+                        </svg>
+                        Deep Scan Markets
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    data-testid="scanner-load-scan"
+                    disabled={!lastResult}
+                    className={`h-11 rounded-xl font-bold text-sm border-2 transition-all ${
+                      lastResult
+                        ? "border-primary text-primary hover:bg-primary/10 active:scale-95"
+                        : "border-border text-muted-foreground cursor-not-allowed"
+                    }`}
+                  >
+                    Load Scan
+                  </button>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
-
-      {/* Main Bar */}
-      <div className="h-[52px] bg-white border-t border-[#E5E7EB] fixed bottom-0 left-0 right-0 z-40 flex items-center px-4 gap-3 shadow-sm">
-        <button
-          onClick={() => setShowDisclaimer(true)}
-          className="text-[#1E90FF] border border-[#1E90FF] px-3 py-1.5 rounded text-xs font-semibold hover:bg-[#1E90FF]/10 transition-colors whitespace-nowrap shrink-0"
-        >
-          Risk Disclaimer
-        </button>
-
-        <div className="w-[1px] h-6 bg-[#E5E7EB] shrink-0" />
-
-        {isRunning ? (
-          <button
-            onClick={stopBot}
-            className="bg-[#EF4444] hover:bg-red-600 text-white w-8 h-8 rounded flex items-center justify-center shrink-0 transition-colors"
-            aria-label="Stop bot"
-          >
-            <Square className="w-3.5 h-3.5 fill-current" />
-          </button>
-        ) : (
-          <button
-            onClick={runBot}
-            className="bg-[#1E90FF] hover:bg-[#1a7fe0] text-white w-8 h-8 rounded flex items-center justify-center shrink-0 transition-colors"
-            aria-label="Run bot"
-          >
-            <Play className="w-4 h-4 fill-current ml-0.5" />
-          </button>
-        )}
-
-        <span className={`text-xs whitespace-nowrap shrink-0 ${isRunning ? "text-[#1E90FF] animate-pulse" : "text-[#6B7280]"}`}>
-          {statusMsg}
-        </span>
-
-        {isRunning && (
-          <div className="hidden md:flex items-center flex-1 px-2 h-full min-w-0">
-            <div className="w-full h-1 bg-[#E5E7EB] rounded-full overflow-hidden">
-              <div className="h-full bg-[#1E90FF] rounded-full animate-pulse w-1/3" />
-            </div>
-          </div>
-        )}
-
-        <span className="hidden md:block text-[11px] text-[#6B7280] font-mono ml-auto shrink-0 select-none">
-          {clock}
-        </span>
-
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="p-2 text-[#6B7280] hover:text-[#1A1A1A] hover:bg-[#F4F6FA] rounded transition-colors shrink-0"
-        >
-          {expanded ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
-        </button>
-      </div>
     </>
   );
 }

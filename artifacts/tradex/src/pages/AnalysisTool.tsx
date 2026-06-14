@@ -3,7 +3,7 @@ import { Settings, RefreshCw, TrendingUp, TrendingDown, X } from "lucide-react";
 import { OAUTH_APP_ID, useAuth } from "@/context/AuthContext";
 import AuthGateModal from "@/components/AuthGateModal";
 
-const WS_URL       = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`;
+const WS_URL       = `wss://api.derivws.com/trading/v1/options/ws/public`;
 const REDIRECT_URI = "https://tradexpro.co.ke/callback";
 const LOGIN_URL    = `https://oauth.deriv.com/oauth2/authorize?app_id=${OAUTH_APP_ID}&l=EN&brand=deriv&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
 

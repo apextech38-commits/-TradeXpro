@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { OAUTH_APP_ID } from "../context/AuthContext";
 import { X, Radio } from "lucide-react";
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`;
+const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public`;
 
 const MARKETS = [
   { symbol: "R_10",     name: "Volatility 10 Index" },

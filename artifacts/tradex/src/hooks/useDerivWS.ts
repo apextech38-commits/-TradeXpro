@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { OAUTH_APP_ID } from '@/context/AuthContext'; // Updated import name
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`; // Updated variable name
+const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public`;
 const TOKEN_KEY = "deriv_token";
 
 export interface Tick {

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { OAUTH_APP_ID } from "@/context/AuthContext";
 
-const WS_URL   = `wss://ws.binaryws.com/websockets/v3?app_id=${OAUTH_APP_ID}`;
+const WS_URL   = `wss://api.derivws.com/trading/v1/options/ws/public`;
 const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${OAUTH_APP_ID}&l=EN&brand=deriv`;
 const TOKEN_KEY = "deriv_token";
 

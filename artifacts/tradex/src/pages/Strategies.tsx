@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { DERIV_APP_ID } from "@/context/AuthContext";
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
+const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public`;
 const TOKEN_KEY = "deriv_token";
 
 const MARKETS = [

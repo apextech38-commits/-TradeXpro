@@ -7,7 +7,7 @@ import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { useAuth } from "@/context/AuthContext";
 import { DERIV_APP_ID } from "@/context/AuthContext";
 
-const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
+const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public`;
 
 const TICKER_SYMBOLS = [
   { id: "1HZ100V", label: "Vol 100 (1s)", pip: 2 },
