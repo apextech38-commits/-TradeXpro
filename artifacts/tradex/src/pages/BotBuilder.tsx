@@ -8,20 +8,20 @@ export default function BotBuilder() {
         minHeight: 0,
       }}
     >
-      <iframe
-        src="https://dbot.deriv.com"
-        style={{
-          position: "absolute",
-          top: -120,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          width: "100%",
-          height: "calc(100% + 120px)",
-          border: "none",
-        }}
-        allow="clipboard-read; clipboard-write"
-      />
-    </div>
+<iframe
+  src="https://dbot.deriv.com"
+  style={{
+    position: "absolute",
+    top: -120,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100%",
+    height: "calc(100% + 120px)",
+    border: "none",
+  }}
+  allow="clipboard-read; clipboard-write"
+  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+/>    </div>
   );
 }
