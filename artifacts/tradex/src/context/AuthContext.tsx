@@ -355,7 +355,7 @@ const signup = useCallback(async () => {
     setIsAuthorized(false);
     setBalance(null);
     setRecentTrades([]);
-    localStorage.setItem(TOKEN_KEY, acct.token);
+    localStorage.setItem("tradex_active_acct_token", acct.token); // per-account token, not OAuth token
     connect(acct);
   };
 

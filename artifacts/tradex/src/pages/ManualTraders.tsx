@@ -15,7 +15,7 @@ export default function ManualTraders() {
     const sendAuth = async () => {
       const iframe = iframeRef.current;
       if (!iframe?.contentWindow) return;
-      const token = localStorage.getItem(TOKEN_KEY);
+      const token = localStorage.getItem('tradex_access_token'); // real Deriv OAuth token
       const storedAccounts = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]');
       if (!token || storedAccounts.length === 0) return;
 
