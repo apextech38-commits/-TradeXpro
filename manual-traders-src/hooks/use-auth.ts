@@ -84,7 +84,7 @@ export function useAuth(): UseAuthReturn {
 
     const handleParentAuth = async (event: MessageEvent) => {
       if (event.data?.type !== 'TRADEX_AUTH') return;
-      const { token, accounts: parentAccounts, activeAccountId } = event.data;
+      const { token, accounts: parentAccounts, activeAccountId, wsUrl: parentWsUrl } = event.data;
       if (!token || !parentAccounts?.length) return;
 
       // Map accounts to iframe format — use per-account Deriv token, not Ory token
@@ -109,16 +109,15 @@ export function useAuth(): UseAuthReturn {
       localStorage.setItem('deriv_accounts', JSON.stringify(mapped));
       localStorage.setItem('active_loginid', activeAccountId ?? mapped[0]?.account_id);
 
-      // Hydrate state + get OTP wsUrl so isAuthenticated = !!auth.wsUrl works
+      // Use wsUrl sent from parent (already fetched with correct App ID)
       setAccounts(mapped);
       setActiveAccountId(targetId);
       setAuthState('authenticated');
-      try {
-        const otpUrl = await getWebSocketOTP(targetId, authInfo as AuthInfo, getAuthConfig().clientId);
-        setWsUrl(otpUrl);
-        console.log('[TRADEX_AUTH] OTP success, wsUrl set');
-      } catch (e) {
-        console.warn('[TRADEX_AUTH] OTP failed:', e);
+      if (parentWsUrl) {
+        setWsUrl(parentWsUrl);
+        console.log('[TRADEX_AUTH] wsUrl set from parent:', parentWsUrl.slice(0, 40));
+      } else {
+        console.warn('[TRADEX_AUTH] no wsUrl received from parent');
       }
     };
 
