@@ -105,10 +105,17 @@ export function useAuth(): UseAuthReturn {
       localStorage.setItem('deriv_accounts', JSON.stringify(mapped));
       localStorage.setItem('active_loginid', activeAccountId ?? mapped[0]?.account_id);
 
-      // Hydrate state directly — skip OTP, buy uses authState + getAuthInfo()
+      // Hydrate state + get OTP wsUrl so isAuthenticated = !!auth.wsUrl works
       setAccounts(mapped);
       setActiveAccountId(activeAccountId ?? mapped[0]?.account_id);
       setAuthState('authenticated');
+      try {
+        const targetId = activeAccountId ?? mapped[0]?.account_id;
+        const otpUrl = await getWebSocketOTP(targetId, authInfo as AuthInfo, getAuthConfig().clientId);
+        setWsUrl(otpUrl);
+      } catch (e) {
+        console.warn('[TRADEX_AUTH] OTP failed, trading WS will not authenticate:', e);
+      }
     };
 
     window.addEventListener('message', handleParentAuth);
