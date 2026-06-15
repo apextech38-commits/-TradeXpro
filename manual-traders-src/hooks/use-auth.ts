@@ -76,6 +76,52 @@ export function useAuth(): UseAuthReturn {
   const [wsUrl, setWsUrl] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const initRef = useRef(false);
+
+  // Listen for auth token from parent TradeX app
+  useEffect(() => {
+    const handleParentAuth = async (event: MessageEvent) => {
+      if (event.data?.type !== 'TRADEX_AUTH') return;
+      const { token, accounts: parentAccounts, activeAccountId } = event.data;
+      if (!token || !parentAccounts?.length) return;
+
+      // Store auth_info compatible with iframe's auth system
+      const authInfo = {
+        access_token: token,
+        token_type: 'Bearer',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      };
+      localStorage.setItem('auth_info', JSON.stringify(authInfo));
+
+      // Map accounts to iframe format
+      const mapped = parentAccounts.map((a: {account: string; account_type: string; currency?: string}) => ({
+        account_id: a.account,
+        account_type: a.account_type,
+        currency: a.currency ?? 'USD',
+        token,
+      }));
+      localStorage.setItem('deriv_accounts', JSON.stringify(mapped));
+      localStorage.setItem('active_loginid', activeAccountId ?? mapped[0]?.account_id);
+
+      // Get OTP URL and bootstrap auth
+      try {
+        const otpUrl = await getWebSocketOTP(activeAccountId ?? mapped[0]?.account_id, authInfo as AuthInfo, getAuthConfig().clientId);
+        setAccounts(mapped);
+        setActiveAccountId(activeAccountId ?? mapped[0]?.account_id);
+        setWsUrl(otpUrl);
+        setAuthState('authenticated');
+      } catch {
+        // fallback: at least mark as authenticated so buy works
+        setAccounts(mapped);
+        setActiveAccountId(activeAccountId ?? mapped[0]?.account_id);
+        setAuthState('authenticated');
+      }
+    };
+
+    window.addEventListener('message', handleParentAuth);
+    return () => window.removeEventListener('message', handleParentAuth);
+  }, []);
+
+
   const activeAccountIdRef = useRef<string | null>(null);
   const tabHiddenAtRef = useRef<number | null>(null);
 
