@@ -105,19 +105,10 @@ export function useAuth(): UseAuthReturn {
       localStorage.setItem('deriv_accounts', JSON.stringify(mapped));
       localStorage.setItem('active_loginid', activeAccountId ?? mapped[0]?.account_id);
 
-      // Get OTP URL and bootstrap auth
-      try {
-        const otpUrl = await getWebSocketOTP(activeAccountId ?? mapped[0]?.account_id, authInfo as AuthInfo, getAuthConfig().clientId);
-        setAccounts(mapped);
-        setActiveAccountId(activeAccountId ?? mapped[0]?.account_id);
-        setWsUrl(otpUrl);
-        setAuthState('authenticated');
-      } catch {
-        // fallback: at least mark as authenticated so buy works
-        setAccounts(mapped);
-        setActiveAccountId(activeAccountId ?? mapped[0]?.account_id);
-        setAuthState('authenticated');
-      }
+      // Hydrate state directly — skip OTP, buy uses authState + getAuthInfo()
+      setAccounts(mapped);
+      setActiveAccountId(activeAccountId ?? mapped[0]?.account_id);
+      setAuthState('authenticated');
     };
 
     window.addEventListener('message', handleParentAuth);
