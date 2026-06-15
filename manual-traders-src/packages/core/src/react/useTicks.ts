@@ -50,6 +50,10 @@ export function useTicks(
     pipSizeRef.current = ps;
 
     async function subscribe() {
+      // Small delay so Deriv server can process forget_all from previous connection
+      // before we resubscribe — prevents "Already subscribed" on reconnect
+      await new Promise(resolve => setTimeout(resolve, 300));
+      if (disposed) return;
       const historyResponse = await ws!.send<TicksHistoryResponse>({
         ticks_history: activeSymbol!.underlying_symbol,
         end: 'latest',
