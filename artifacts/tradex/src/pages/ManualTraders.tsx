@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 const TOKEN_KEY = "tradex_access_token";
 const ACCOUNTS_KEY = "tradex-deriv-accounts";
 const API_BASE = "https://api.derivws.com/trading/v1/options";
-const OAUTH_APP_ID = "33ughhvgtxloGNBQQZEeD";
+const OAUTH_APP_ID = "33ughhvgtxloGWBQQZEeD";
 
 export default function ManualTraders() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
