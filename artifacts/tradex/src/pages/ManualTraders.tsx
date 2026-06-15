@@ -7,18 +7,17 @@ const ACCOUNTS_KEY = "tradex-deriv-accounts";
 
 export default function ManualTraders() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { isLoggedIn, activeAccount, accounts } = useAuth();
+  const { activeAccount, accounts } = useAuth();
 
   useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-
     const sendAuth = () => {
+      const iframe = iframeRef.current;
+      if (!iframe?.contentWindow) return;
       const token = localStorage.getItem(TOKEN_KEY);
       const storedAccounts = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]');
       if (!token || storedAccounts.length === 0) return;
 
-      iframe.contentWindow?.postMessage({
+      iframe.contentWindow.postMessage({
         type: 'TRADEX_AUTH',
         token,
         accounts: storedAccounts,
@@ -26,8 +25,15 @@ export default function ManualTraders() {
       }, '*');
     };
 
-    iframe.addEventListener('load', sendAuth);
-    return () => iframe.removeEventListener('load', sendAuth);
+    // Listen for iframe signaling it's ready
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'TRADEX_READY') {
+        sendAuth();
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, [activeAccount, accounts]);
 
   return (

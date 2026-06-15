@@ -79,6 +79,9 @@ export function useAuth(): UseAuthReturn {
 
   // Listen for auth token from parent TradeX app
   useEffect(() => {
+    // Signal parent we're ready to receive auth
+    window.parent.postMessage({ type: 'TRADEX_READY' }, '*');
+
     const handleParentAuth = async (event: MessageEvent) => {
       if (event.data?.type !== 'TRADEX_AUTH') return;
       const { token, accounts: parentAccounts, activeAccountId } = event.data;
