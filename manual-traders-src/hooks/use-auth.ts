@@ -87,34 +87,38 @@ export function useAuth(): UseAuthReturn {
       const { token, accounts: parentAccounts, activeAccountId } = event.data;
       if (!token || !parentAccounts?.length) return;
 
-      // Store auth_info compatible with iframe's auth system
+      // Map accounts to iframe format — use per-account Deriv token, not Ory token
+      const mapped = parentAccounts.map((a: {account: string; token: string; account_type: string; currency?: string}) => ({
+        account_id: a.account,
+        account_type: a.account_type,
+        currency: a.currency ?? 'USD',
+        token: a.token, // This is the real Deriv token
+      }));
+
+      // Use the active account's Deriv token for auth_info
+      const targetId = activeAccountId ?? mapped[0]?.account_id;
+      const activeAcct = mapped.find((a: {account_id: string}) => a.account_id === targetId) ?? mapped[0];
+      const derivToken = activeAcct?.token ?? token;
+
       const authInfo = {
-        access_token: token,
+        access_token: derivToken,
         token_type: 'Bearer',
         expires_at: Math.floor(Date.now() / 1000) + 3600,
       };
       localStorage.setItem('auth_info', JSON.stringify(authInfo));
-
-      // Map accounts to iframe format
-      const mapped = parentAccounts.map((a: {account: string; account_type: string; currency?: string}) => ({
-        account_id: a.account,
-        account_type: a.account_type,
-        currency: a.currency ?? 'USD',
-        token,
-      }));
       localStorage.setItem('deriv_accounts', JSON.stringify(mapped));
       localStorage.setItem('active_loginid', activeAccountId ?? mapped[0]?.account_id);
 
       // Hydrate state + get OTP wsUrl so isAuthenticated = !!auth.wsUrl works
       setAccounts(mapped);
-      setActiveAccountId(activeAccountId ?? mapped[0]?.account_id);
+      setActiveAccountId(targetId);
       setAuthState('authenticated');
       try {
-        const targetId = activeAccountId ?? mapped[0]?.account_id;
         const otpUrl = await getWebSocketOTP(targetId, authInfo as AuthInfo, getAuthConfig().clientId);
         setWsUrl(otpUrl);
+        console.log('[TRADEX_AUTH] OTP success, wsUrl set');
       } catch (e) {
-        console.warn('[TRADEX_AUTH] OTP failed, trading WS will not authenticate:', e);
+        console.warn('[TRADEX_AUTH] OTP failed:', e);
       }
     };
 
