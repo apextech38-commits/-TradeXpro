@@ -76,30 +76,54 @@ export function useAuth(): UseAuthReturn {
   const [wsUrl, setWsUrl] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const initRef = useRef(false);
-  // Listen for OAuth token from parent TradeX app
+  // Listen for OAuth token from parent TradeX app (Option A)
   useEffect(() => {
     const handleParentToken = async (event: MessageEvent) => {
       if (event.origin !== 'https://tradexpro.co.ke') return;
       if (event.data?.type !== 'DERIV_TOKEN') return;
-      const { access_token } = event.data;
-      if (!token || authState === 'authenticated') return;
+      if (authState === 'authenticated') return;
+
+      const { access_token, account_id, account_type } = event.data;
+      if (!access_token || !account_id) return;
 
       try {
+        setAuthState('authenticating');
         const authInfo: AuthInfo = {
           access_token,
           token_type: 'Bearer',
           expires_at: Math.floor(Date.now() / 1000) + 3600,
           refresh_token: '',
         };
-        await completeAuth(authInfo);
-      } catch {
-        // silently fail — user can log in manually
+
+        // Store auth info
+        localStorage.setItem('auth_info', JSON.stringify(authInfo));
+
+        // Get OTP URL directly using account_id
+        const otpUrl = await getWebSocketOTP(account_id, authInfo, getAuthConfig().clientId);
+
+        // Set a minimal account
+        const account = {
+          account_id,
+          account_type: account_type ?? 'demo',
+          currency: 'USD',
+        };
+        localStorage.setItem('deriv_accounts', JSON.stringify([account]));
+        localStorage.setItem('active_loginid', account_id);
+
+        setAccounts([account]);
+        setActiveAccountId(account_id);
+        setWsUrl(otpUrl);
+        setAuthState('authenticated');
+      } catch (err) {
+        console.error('DERIV_TOKEN auth failed:', err);
+        setAuthState('unauthenticated');
       }
     };
 
     window.addEventListener('message', handleParentToken);
     return () => window.removeEventListener('message', handleParentToken);
   }, [authState, completeAuth]);
+
 
 
 
