@@ -57,9 +57,10 @@ export default function Navbar() {
   const activeRoute = location.pathname;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-[#E5E7EB] shadow-sm">
-      {/* Row 1 */}
-      <div className="flex items-center justify-between px-3 h-[44px]">
+    <>
+      <nav className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-[#E5E7EB] shadow-sm">
+        {/* Row 1 */}
+        <div className="flex items-center justify-between px-3 h-[44px]">
         <div className="flex items-center gap-2">
           <div className="relative">
             <button
@@ -217,11 +218,11 @@ export default function Navbar() {
             <div className="flex border-b border-[#E5E7EB] shrink-0">
               <button
                 onClick={() => setCashierTab('deposit')}
-                className={\`flex-1 py-3 text-sm font-semibold transition-colors \${cashierTab === 'deposit' ? 'border-b-2 border-[#1E90FF] text-[#1E90FF]' : 'text-[#6B7280]'}\`}
+                className={`flex-1 py-3 text-sm font-semibold transition-colors ${cashierTab === 'deposit' ? 'border-b-2 border-[#1E90FF] text-[#1E90FF]' : 'text-[#6B7280]'}`}
               >Deposit</button>
               <button
                 onClick={() => setCashierTab('withdraw')}
-                className={\`flex-1 py-3 text-sm font-semibold transition-colors \${cashierTab === 'withdraw' ? 'border-b-2 border-[#1E90FF] text-[#1E90FF]' : 'text-[#6B7280]'}\`}
+                className={`flex-1 py-3 text-sm font-semibold transition-colors ${cashierTab === 'withdraw' ? 'border-b-2 border-[#1E90FF] text-[#1E90FF]' : 'text-[#6B7280]'}`}
               >Withdraw</button>
             </div>
             <div className="flex-1 min-h-0">
@@ -234,5 +235,6 @@ export default function Navbar() {
           </div>
         </div>
       )}
+    </>
   );
 }
