@@ -76,6 +76,32 @@ export function useAuth(): UseAuthReturn {
   const [wsUrl, setWsUrl] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const initRef = useRef(false);
+  // Listen for OAuth token from parent TradeX app
+  useEffect(() => {
+    const handleParentToken = async (event: MessageEvent) => {
+      if (event.origin !== 'https://tradexpro.co.ke') return;
+      if (event.data?.type !== 'DERIV_TOKEN') return;
+      const { access_token } = event.data;
+      if (!token || authState === 'authenticated') return;
+
+      try {
+        const authInfo: AuthInfo = {
+          access_token,
+          token_type: 'Bearer',
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          refresh_token: '',
+        };
+        await completeAuth(authInfo);
+      } catch {
+        // silently fail — user can log in manually
+      }
+    };
+
+    window.addEventListener('message', handleParentToken);
+    return () => window.removeEventListener('message', handleParentToken);
+  }, [authState, completeAuth]);
+
+
 
   // Listen for auth token from parent TradeX app
   useEffect(() => {
