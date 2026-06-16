@@ -156,6 +156,34 @@ export function useAuth(): UseAuthReturn {
     initRef.current = true;
 
     const init = async () => {
+      // Check for main TradeX app token (same domain — direct localStorage access)
+      const tradexToken = localStorage.getItem('tradex_access_token');
+      const tradexAccounts = JSON.parse(localStorage.getItem('tradex-deriv-accounts') || '[]');
+      if (tradexToken && tradexAccounts.length > 0) {
+        const authInfo = { access_token: tradexToken, expires_at: Math.floor(Date.now() / 1000) + 3600 };
+        localStorage.setItem('auth_info', JSON.stringify(authInfo));
+        const mapped = tradexAccounts.map((a: {account: string; account_type: string; currency?: string}) => ({
+          account_id: a.account,
+          account_type: a.account_type,
+          currency: a.currency ?? 'USD',
+        }));
+        localStorage.setItem('deriv_accounts', JSON.stringify(mapped));
+        localStorage.setItem('active_loginid', tradexAccounts[0].account);
+        localStorage.setItem('account_type', tradexAccounts[0].account_type);
+        try {
+          const otpUrl = await getWebSocketOTP(tradexAccounts[0].account, authInfo as AuthInfo, getAuthConfig().clientId);
+          setAccounts(mapped);
+          setActiveAccountId(tradexAccounts[0].account);
+          setWsUrl(otpUrl);
+          setAuthState('authenticated');
+        } catch {
+          setAccounts(mapped);
+          setActiveAccountId(tradexAccounts[0].account);
+          setAuthState('authenticated');
+        }
+        return;
+      }
+
       const url = new URL(window.location.href);
       const code = url.searchParams.get('code');
 
