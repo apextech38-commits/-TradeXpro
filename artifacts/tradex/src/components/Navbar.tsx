@@ -100,6 +100,13 @@ export default function Navbar() {
         {/* Auth */}
         <div className="flex items-center gap-2">
           {isLoggedIn ? (
+            <>
+            <button
+              onClick={() => setShowCashier(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#1E90FF] border border-[#1E90FF]/30 rounded-md hover:bg-[#1E90FF]/10 transition-colors shrink-0"
+            >
+              💳 Cashier
+            </button>
             <div className="relative">
               <button
                 data-testid="account-menu-button"
@@ -164,6 +171,7 @@ export default function Navbar() {
                 </>
               )}
             </div>
+            </>
           ) : (
             <>
               <button
