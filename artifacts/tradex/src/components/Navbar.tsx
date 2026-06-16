@@ -47,6 +47,8 @@ export default function Navbar() {
 
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [showCashier, setShowCashier] = useState(false);
+  const [cashierTab, setCashierTab] = useState<'deposit' | 'withdraw'>('deposit');
 
   const formattedBalance = balance !== null
     ? `${currency} ${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -202,5 +204,35 @@ export default function Navbar() {
         </div>
       </div>
     </nav>
+
+      {/* Cashier Drawer */}
+      {showCashier && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCashier(false)} />
+          <div className="relative w-full bg-white rounded-t-3xl shadow-2xl flex flex-col" style={{ height: "90vh" }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB] shrink-0">
+              <h2 className="text-base font-bold text-[#1A1A1A]">Cashier</h2>
+              <button onClick={() => setShowCashier(false)} className="p-1 text-[#6B7280] hover:text-[#1A1A1A]">✕</button>
+            </div>
+            <div className="flex border-b border-[#E5E7EB] shrink-0">
+              <button
+                onClick={() => setCashierTab('deposit')}
+                className={\`flex-1 py-3 text-sm font-semibold transition-colors \${cashierTab === 'deposit' ? 'border-b-2 border-[#1E90FF] text-[#1E90FF]' : 'text-[#6B7280]'}\`}
+              >Deposit</button>
+              <button
+                onClick={() => setCashierTab('withdraw')}
+                className={\`flex-1 py-3 text-sm font-semibold transition-colors \${cashierTab === 'withdraw' ? 'border-b-2 border-[#1E90FF] text-[#1E90FF]' : 'text-[#6B7280]'}\`}
+              >Withdraw</button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <iframe
+                src={cashierTab === 'deposit' ? 'https://app.deriv.com/cashier/deposit' : 'https://app.deriv.com/cashier/withdrawal'}
+                title="Cashier"
+                style={{ width: '100%', height: '100%', border: 'none' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
   );
 }
