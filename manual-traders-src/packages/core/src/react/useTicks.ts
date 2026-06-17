@@ -1,3 +1,4 @@
+// manual-traders-src/packages/core/src/react/useTicks.ts
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -16,11 +17,13 @@ export function useTicks(
   ws: DerivWS | null,
   isConnected: boolean,
   activeSymbol: ActiveSymbol | null,
-  tickCount: number = DEFAULT_TICK_COUNT
+  tickCount: number = DEFAULT_TICK_COUNT,
+  isAuthenticatedSocketOpen: boolean = false // New param
 ): UseTicksReturn {
   const pricesRef = useRef<number[]>([]);
   const pipSizeRef = useRef<number>(2);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const subscriptionIdRef = useRef<string | null>(null);
 
   const [currentTick, setCurrentTick] = useState<Tick | null>(null);
   const [prices, setPrices] = useState<number[]>([]);
@@ -34,14 +37,44 @@ export function useTicks(
   }, []);
 
   useEffect(() => {
-    if (!ws || !isConnected || !activeSymbol) return;
+    // 🔐 CRITICAL: Check authentication before subscribing to ticks
+    if (!ws || !isConnected || !activeSymbol) {
+      return;
+    }
+
+    if (!isAuthenticatedSocketOpen) {
+      console.warn('⛔ Ticks subscription blocked: Not authenticated', {
+        wsUrl: ws?.url,
+        isConnected,
+        isAuthenticatedSocketOpen
+      });
+      // Clear existing data
+      setCurrentTick(null);
+      setPrices([]);
+      pricesRef.current = [];
+      return;
+    }
+
     let disposed = false;
 
-    // Unsubscribe from previous
-    if (unsubscribeRef.current) {
-      unsubscribeRef.current();
-      unsubscribeRef.current = null;
-    }
+    // Unsubscribe from previous subscription
+    const cleanupPrevious = async () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+      
+      // Send forget_all for ticks to clean up server-side subscription
+      if (ws?.isConnected) {
+        try {
+          await ws.send({ forget_all: 'ticks' });
+          console.log('🧹 Cleaned up previous ticks subscription');
+        } catch (err) {
+          // Ignore errors on cleanup
+          console.debug('Cleanup error (ignored):', err);
+        }
+      }
+    };
 
     // Reset refs
     pricesRef.current = [];
@@ -50,10 +83,22 @@ export function useTicks(
     pipSizeRef.current = ps;
 
     async function subscribe() {
+      // Clean up previous subscription first
+      await cleanupPrevious();
+      
+      if (disposed) return;
+
       // Small delay so Deriv server can process forget_all from previous connection
-      // before we resubscribe — prevents "Already subscribed" on reconnect
+      // before we resubscribe — prevents "Already subscribed"
       await new Promise(resolve => setTimeout(resolve, 300));
       if (disposed) return;
+
+      console.log('📡 Subscribing to ticks:', {
+        symbol: activeSymbol!.underlying_symbol,
+        isAuthenticated: isAuthenticatedSocketOpen,
+        wsUrl: ws?.url
+      });
+
       const historyResponse = await ws!.send<TicksHistoryResponse>({
         ticks_history: activeSymbol!.underlying_symbol,
         end: 'latest',
@@ -68,6 +113,7 @@ export function useTicks(
       pricesRef.current = historyPrices;
       setPrices([...historyPrices]);
 
+      // Subscribe to live ticks
       const sub = await ws!.subscribe(
         { ticks: activeSymbol!.underlying_symbol },
         (data) => {
@@ -95,9 +141,12 @@ export function useTicks(
         return;
       }
       unsubscribeRef.current = sub.unsubscribe;
+      console.log('✅ Ticks subscription active');
     }
 
-    subscribe().catch(() => {});
+    subscribe().catch((err) => {
+      console.error('❌ Ticks subscription error:', err);
+    });
 
     return () => {
       disposed = true;
@@ -107,13 +156,12 @@ export function useTicks(
         unsubscribeRef.current();
         unsubscribeRef.current = null;
       }
-      // Send forget_all for ticks so the server clears the stream before the
-      // next mount re-subscribes — prevents AlreadySubscribed on navigation.
+      // Send forget_all for ticks so the server clears the stream
       if (ws?.isConnected) {
         ws.send({ forget_all: 'ticks' }).catch(() => {});
       }
     };
-  }, [ws, isConnected, activeSymbol, tickCount, pipSizeFromPip]);
+  }, [ws, isConnected, activeSymbol, tickCount, pipSizeFromPip, isAuthenticatedSocketOpen]);
 
   return { currentTick, prices, pipSize };
 }

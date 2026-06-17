@@ -1,3 +1,4 @@
+// manual-traders-src/packages/core/src/react/useProposal.ts
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -11,7 +12,8 @@ interface UseProposalReturn {
 export function useProposal(
   ws: DerivWS | null,
   isConnected: boolean,
-  params: ProposalParams | null
+  params: ProposalParams | null,
+  isAuthenticatedSocketOpen: boolean = false // New param
 ): UseProposalReturn {
   const [proposal, setProposal] = useState<ProposalInfo | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
@@ -23,7 +25,18 @@ export function useProposal(
       unsubRef.current = null;
     }
 
+    // 🔐 CRITICAL: Check authentication before getting proposal
     if (!ws || !isConnected || !params || params.amount <= 0) {
+      return;
+    }
+
+    if (!isAuthenticatedSocketOpen) {
+      console.warn('⛔ Proposal blocked: Not authenticated', {
+        wsUrl: ws?.url,
+        isConnected,
+        isAuthenticatedSocketOpen
+      });
+      setProposal(null);
       return;
     }
 
@@ -49,6 +62,12 @@ export function useProposal(
       payload.barrier = params.barrier;
     }
 
+    console.log('📊 Getting proposal with authenticated socket:', {
+      wsUrl: ws.url,
+      symbol: params.symbol,
+      amount: params.amount
+    });
+
     ws.subscribe(payload, (data) => {
       if (cancelled) return;
       const resp = data as unknown as ProposalResponse;
@@ -68,7 +87,8 @@ export function useProposal(
       } else {
         unsubRef.current = sub.unsubscribe;
       }
-    }).catch(() => {
+    }).catch((err) => {
+      console.error('❌ Proposal subscription error:', err);
       if (!cancelled) setProposal(null);
     });
 
@@ -81,7 +101,7 @@ export function useProposal(
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally using individual param fields to avoid re-subscribing on object reference changes
-  }, [ws, isConnected, params?.contractType, params?.symbol, params?.amount, params?.duration, params?.durationUnit, params?.barrier, params?.basis, params?.currency, params?.dateExpiry]);
+  }, [ws, isConnected, params?.contractType, params?.symbol, params?.amount, params?.duration, params?.durationUnit, params?.barrier, params?.basis, params?.currency, params?.dateExpiry, isAuthenticatedSocketOpen]);
 
   return { proposal };
 }

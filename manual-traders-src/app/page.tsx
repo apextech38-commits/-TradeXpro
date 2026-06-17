@@ -1,66 +1,103 @@
+// manual-traders-src/app/page.tsx or wherever you use these hooks
 'use client';
 
-import { useSmartChartsApi } from '@/hooks/use-smartcharts-api';
-import { useSmartChartChartData } from '@/hooks/use-smartchart-chart-data';
-import { useRiseFallTrading } from '../hooks/use-rise-fall-trading';
+import { useBuy, useProposal, useTicks } from '@deriv/core';
 import { useDerivWSContext } from '@/components/custom/deriv-ws-provider';
-import { useLogoSrc } from '@/components/custom/logo-src-provider';
-import { RiseFallView } from '../components/rise-fall-view';
+import { useAuth } from '@/hooks/use-auth';
 
-export default function RiseFallPage() {
-  const logoSrc = useLogoSrc();
-  const { ws, isConnected, isExhausted, auth } = useDerivWSContext();
-  const { authState, accounts, activeAccount, login, signUp, logout, switchAccount } = auth;
+export default function TradingPage() {
+  const { ws, isConnected, isAuthenticatedSocketOpen, wsUrl } = useDerivWSContext();
+  const { accountId, accountType } = useAuth();
+  
+  // Pass the authentication flag to all hooks
+  const { buyContract, isBuying, buyError } = useBuy(
+    ws, 
+    isConnected, 
+    isAuthenticatedSocketOpen // ← This is the key change
+  );
+  
+  const { proposal } = useProposal(
+    ws,
+    isConnected,
+    { 
+      amount: 100,
+      basis: 'stake',
+      contractType: 'CALL',
+      currency: 'USD',
+      symbol: '1HZ100V',
+      duration: 10,
+      durationUnit: 't'
+    },
+    isAuthenticatedSocketOpen // ← This is the key change
+  );
+  
+  const { currentTick, prices, pipSize } = useTicks(
+    ws,
+    isConnected,
+    { underlying_symbol: '1HZ100V', pip_size: 0.01 }, // Active symbol
+    1000,
+    isAuthenticatedSocketOpen // ← This is the key change
+  );
 
-  const trading = useRiseFallTrading({ ws, isConnected, isExhausted, isAuthenticated: !!auth.wsUrl, onAuthWSFailed: logout });
+  const handleBuy = async () => {
+    if (!proposal || !isAuthenticatedSocketOpen) {
+      console.error('Cannot buy: not authenticated or no proposal');
+      return;
+    }
+    
+    try {
+      await buyContract(proposal);
+    } catch (error) {
+      console.error('Buy failed:', error);
+    }
+  };
 
-  const { chartData } = useSmartChartChartData(trading.ws, trading.isConnected, trading.symbols);
-  const { getQuotes, subscribeQuotes, unsubscribeQuotes } = useSmartChartsApi(trading.ws);
+  // Debug display
+  console.log('🔐 Connection status:', {
+    isConnected,
+    isAuthenticatedSocketOpen,
+    wsUrl,
+    accountId,
+    accountType
+  });
 
   return (
-    <RiseFallView
-      authState={authState}
-      accounts={accounts}
-      activeAccount={activeAccount}
-      onLogin={login}
-      onSignUp={signUp}
-      onLogout={logout}
-      onSwitchAccount={switchAccount}
-      logoSrc={logoSrc}
-      ws={trading.ws}
-      isConnected={trading.isConnected}
-      isLoading={trading.isLoading}
-      error={trading.error}
-      activeSymbol={trading.activeSymbol}
-      selectSymbol={trading.selectSymbol}
-      direction={trading.direction}
-      setDirection={trading.setDirection}
-      allowEquals={trading.allowEquals}
-      setAllowEquals={trading.setAllowEquals}
-      stake={trading.stake}
-      setStake={trading.setStake}
-      duration={trading.duration}
-      setDuration={trading.setDuration}
-      durationOptions={trading.durationOptions}
-      durationUnit={trading.durationUnit}
-      setDurationUnit={trading.setDurationUnit}
-      endDate={trading.endDate}
-      setEndDate={trading.setEndDate}
-      endTime={trading.endTime}
-      setEndTime={trading.setEndTime}
-      proposal={trading.proposal}
-      buyContract={trading.buyContract}
-      isBuying={trading.isBuying}
-      buyResult={trading.buyResult}
-      buyError={trading.buyError}
-      clearBuyResult={trading.clearBuyResult}
-      openPositions={trading.openPositions}
-      sellContract={trading.sellContract}
-      sellingId={trading.sellingId}
-      chartData={chartData}
-      getQuotes={getQuotes}
-      subscribeQuotes={subscribeQuotes}
-      unsubscribeQuotes={unsubscribeQuotes}
-    />
+    <div>
+      <div style={{ marginBottom: '20px' }}>
+        <div>Status: {isAuthenticatedSocketOpen ? '✅ Authenticated' : '⏳ Connecting...'}</div>
+        <div>WS: {wsUrl?.split('?')[0]}</div>
+        <div>Account: {accountId} ({accountType})</div>
+        {!isAuthenticatedSocketOpen && (
+          <div style={{ color: 'orange' }}>
+            ⚠️ Please wait for authenticated connection...
+          </div>
+        )}
+      </div>
+      
+      <div>
+        Current Price: {currentTick?.quote || 'Loading...'}
+      </div>
+      
+      <button 
+        onClick={handleBuy}
+        disabled={!isAuthenticatedSocketOpen || isBuying || !proposal}
+        style={{
+          padding: '10px 20px',
+          background: isAuthenticatedSocketOpen ? '#4CAF50' : '#ccc',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: isAuthenticatedSocketOpen ? 'pointer' : 'not-allowed'
+        }}
+      >
+        {isBuying ? 'Processing...' : 'Buy'}
+      </button>
+      
+      {buyError && (
+        <div style={{ color: 'red', marginTop: '10px' }}>
+          Error: {buyError}
+        </div>
+      )}
+    </div>
   );
 }

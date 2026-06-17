@@ -1,3 +1,4 @@
+// manual-traders-src/packages/core/src/react/useBuy.ts
 'use client';
 
 import { useState, useCallback } from 'react';
@@ -14,7 +15,8 @@ interface UseBuyReturn {
 
 export function useBuy(
   ws: DerivWS | null,
-  isConnected: boolean
+  isConnected: boolean,
+  isAuthenticatedSocketOpen: boolean = false // New param
 ): UseBuyReturn {
   const [isBuying, setIsBuying] = useState(false);
   const [buyResult, setBuyResult] = useState<BuyResult | null>(null);
@@ -26,7 +28,31 @@ export function useBuy(
   }, []);
 
   const buyContract = useCallback(async (proposal: ProposalInfo) => {
-    if (!ws || !isConnected) return;
+    // 🔐 CRITICAL: Check authentication before attempting buy
+    if (!ws || !isConnected) {
+      const error = 'WebSocket not connected';
+      console.error('❌ Buy failed:', error);
+      setBuyError(error);
+      return;
+    }
+
+    if (!isAuthenticatedSocketOpen) {
+      const error = 'Please log in to purchase contracts';
+      console.error('❌ Buy failed: Not authenticated', {
+        wsUrl: ws.url,
+        isConnected,
+        isAuthenticatedSocketOpen
+      });
+      setBuyError(error);
+      throw new Error(error);
+    }
+
+    // Log the WS URL being used for debugging
+    console.log('🛒 Buying with authenticated socket:', {
+      wsUrl: ws.url,
+      proposalId: proposal.id,
+      price: proposal.askPrice
+    });
 
     setIsBuying(true);
     setBuyError(null);
@@ -38,6 +64,8 @@ export function useBuy(
         price: String(proposal.askPrice),
       });
 
+      console.log('✅ Buy response:', response);
+
       if (response.buy) {
         setBuyResult({
           contractId: response.buy.contract_id,
@@ -48,11 +76,14 @@ export function useBuy(
         });
       }
     } catch (err) {
-      setBuyError(err instanceof Error ? err.message : 'Purchase failed');
+      const errorMessage = err instanceof Error ? err.message : 'Purchase failed';
+      console.error('❌ Buy error:', errorMessage, err);
+      setBuyError(errorMessage);
+      throw err;
     } finally {
       setIsBuying(false);
     }
-  }, [ws, isConnected]);
+  }, [ws, isConnected, isAuthenticatedSocketOpen]);
 
   return { buyContract, isBuying, buyResult, buyError, clearBuyResult };
 }
