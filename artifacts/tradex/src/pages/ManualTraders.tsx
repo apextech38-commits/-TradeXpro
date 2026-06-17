@@ -25,11 +25,21 @@ export default function ManualTraders() {
       }, 'https://tradexpro.co.ke');
     };
 
-    iframe.addEventListener('load', sendToken);
-    // Also send immediately if iframe already loaded
-    if (iframe.contentDocument?.readyState === 'complete') sendToken();
+    // Listen for iframe signalling it is ready
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== 'https://tradexpro.co.ke') return;
+      if (event.data?.type === 'TRADEX_READY') sendToken();
+    };
 
-    return () => iframe.removeEventListener('load', sendToken);
+    window.addEventListener('message', handleMessage);
+
+    // Also send on load in case TRADEX_READY already fired
+    iframe.addEventListener('load', sendToken);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      iframe.removeEventListener('load', sendToken);
+    };
   }, [isLoggedIn, activeAccount]);
 
   return (
