@@ -4,4 +4,3 @@ export { useProposal } from './useProposal';
 export { useTicks } from './useTicks';
 export { useDerivWS } from './useDerivWS';
 export { useActiveSymbols } from './useActiveSymbols';
-export { useBalance } from './useBalance';

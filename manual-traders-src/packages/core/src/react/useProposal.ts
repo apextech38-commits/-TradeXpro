@@ -32,7 +32,7 @@ export function useProposal(
 
     if (!isAuthenticatedSocketOpen) {
       console.warn('⛔ Proposal blocked: Not authenticated', {
-        wsUrl: ws?.url,
+        ws,
         isConnected,
         isAuthenticatedSocketOpen
       });
@@ -63,7 +63,6 @@ export function useProposal(
     }
 
     console.log('📊 Getting proposal with authenticated socket:', {
-      wsUrl: ws.url,
       symbol: params.symbol,
       amount: params.amount
     });

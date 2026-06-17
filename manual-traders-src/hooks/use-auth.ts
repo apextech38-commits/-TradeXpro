@@ -117,8 +117,10 @@ export function useAuth(): UseAuthReturn {
         setAccounts([account]);
         setActiveAccountId(account_id);
         setWsUrl(otpUrl);
+    console.log('✅ wsUrl set in useAuth:', otpUrl);
         setAuthState('authenticated');
       } catch (err) {
+      console.error('❌ OTP fetch failed in useAuth:', err);
         console.error('DERIV_TOKEN auth failed:', err);
         setAuthState('unauthenticated');
       }
@@ -148,6 +150,7 @@ export function useAuth(): UseAuthReturn {
 
       const otpUrl = await fetchOTPUrl(firstAccount.account_id, authInfo);
       setWsUrl(otpUrl);
+    console.log('✅ wsUrl set in useAuth:', otpUrl);
     }
 
     setAuthState('authenticated');
@@ -178,6 +181,7 @@ export function useAuth(): UseAuthReturn {
           setAccounts(mapped);
           setActiveAccountId(tradexAccounts[0].account);
           setWsUrl(otpUrl);
+    console.log('✅ wsUrl set in useAuth:', otpUrl);
           setAuthState('authenticated');
         } catch {
           setAccounts(mapped);
@@ -197,6 +201,7 @@ export function useAuth(): UseAuthReturn {
           const authInfo = await handleOAuthCallback(window.location.href, getAuthConfig());
           await completeAuth(authInfo);
         } catch (err) {
+      console.error('❌ OTP fetch failed in useAuth:', err);
           setError(err instanceof Error ? err.message : 'Authentication failed');
           setAuthState('error');
           clearAllAuthData();
@@ -234,6 +239,7 @@ export function useAuth(): UseAuthReturn {
           try {
             const otpUrl = await fetchOTPUrl(loginId, storedAuth);
             setWsUrl(otpUrl);
+    console.log('✅ wsUrl set in useAuth:', otpUrl);
             setAuthState('authenticated');
           } catch {
             // OTP fetch failed — token may be invalid, clear and fallback
@@ -282,6 +288,7 @@ export function useAuth(): UseAuthReturn {
       try {
         const otpUrl = await fetchOTPUrl(accountId, authInfo);
         setWsUrl(otpUrl);
+    console.log('✅ wsUrl set in useAuth:', otpUrl);
       } catch {
         clearAllAuthData();
         setAuthState('unauthenticated');
@@ -327,7 +334,9 @@ export function useAuth(): UseAuthReturn {
       setActiveLoginId(accountId);
       setActiveAccountId(accountId);
       setWsUrl(otpUrl);
+    console.log('✅ wsUrl set in useAuth:', otpUrl);
     } catch (err) {
+      console.error('❌ OTP fetch failed in useAuth:', err);
       setError(err instanceof Error ? err.message : 'Account switch failed');
     }
   }, [fetchOTPUrl, accounts]);

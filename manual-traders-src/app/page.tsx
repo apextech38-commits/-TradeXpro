@@ -7,7 +7,10 @@ import { useAuth } from '@/hooks/use-auth';
 
 export default function TradingPage() {
   const { ws, isConnected, isAuthenticatedSocketOpen, wsUrl } = useDerivWSContext();
-  const { accountId, accountType } = useAuth();
+  const auth = useAuth();
+  // normalize possible account fields from useAuth
+  const accountId = (auth as any)?.accountId ?? (auth as any)?.account?.id ?? (auth as any)?.account?.loginid ?? '';
+  const accountType = (auth as any)?.accountType ?? (auth as any)?.account?.type ?? (auth as any)?.account_type ?? '';
   
   // Pass the authentication flag to all hooks
   const { buyContract, isBuying, buyError } = useBuy(
@@ -31,10 +34,15 @@ export default function TradingPage() {
     isAuthenticatedSocketOpen // ← This is the key change
   );
   
+  const activeSymbol = {
+    underlying_symbol: '1HZ100V',
+    pip_size: 0.01,
+  } as any;
+
   const { currentTick, prices, pipSize } = useTicks(
     ws,
     isConnected,
-    { underlying_symbol: '1HZ100V', pip_size: 0.01 }, // Active symbol
+    activeSymbol,
     1000,
     isAuthenticatedSocketOpen // ← This is the key change
   );

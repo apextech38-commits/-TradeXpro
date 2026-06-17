@@ -44,7 +44,7 @@ export function useTicks(
 
     if (!isAuthenticatedSocketOpen) {
       console.warn('⛔ Ticks subscription blocked: Not authenticated', {
-        wsUrl: ws?.url,
+        wsUrl: (ws as any)?.url,
         isConnected,
         isAuthenticatedSocketOpen
       });
@@ -96,7 +96,7 @@ export function useTicks(
       console.log('📡 Subscribing to ticks:', {
         symbol: activeSymbol!.underlying_symbol,
         isAuthenticated: isAuthenticatedSocketOpen,
-        wsUrl: ws?.url
+        wsUrl: (ws as any)?.url
       });
 
       const historyResponse = await ws!.send<TicksHistoryResponse>({

@@ -39,7 +39,7 @@ export function useBuy(
     if (!isAuthenticatedSocketOpen) {
       const error = 'Please log in to purchase contracts';
       console.error('❌ Buy failed: Not authenticated', {
-        wsUrl: ws.url,
+        ws, // avoid accessing private properties like `url`
         isConnected,
         isAuthenticatedSocketOpen
       });
@@ -49,7 +49,7 @@ export function useBuy(
 
     // Log the WS URL being used for debugging
     console.log('🛒 Buying with authenticated socket:', {
-      wsUrl: ws.url,
+      ws, // avoid accessing private properties like `url`
       proposalId: proposal.id,
       price: proposal.askPrice
     });
