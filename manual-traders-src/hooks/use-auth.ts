@@ -76,8 +76,10 @@ export function useAuth(): UseAuthReturn {
   const [wsUrl, setWsUrl] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const initRef = useRef(false);
-  // Listen for OAuth token from parent TradeX app (Option A)
+  // Signal parent we're ready, then listen for DERIV_TOKEN auth
   useEffect(() => {
+    window.parent.postMessage({ type: 'TRADEX_READY' }, '*');
+
     const handleParentToken = async (event: MessageEvent) => {
       if (event.origin !== 'https://tradexpro.co.ke') return;
       if (event.data?.type !== 'DERIV_TOKEN') return;
@@ -95,13 +97,10 @@ export function useAuth(): UseAuthReturn {
           refresh_token: '',
         };
 
-        // Store auth info
         localStorage.setItem('auth_info', JSON.stringify(authInfo));
 
-        // Get OTP URL directly using account_id
         const otpUrl = await getWebSocketOTP(account_id, authInfo, getAuthConfig().clientId);
 
-        // Set a minimal account
         const account = {
           account_id,
           account_type: account_type ?? 'demo',
@@ -122,58 +121,7 @@ export function useAuth(): UseAuthReturn {
 
     window.addEventListener('message', handleParentToken);
     return () => window.removeEventListener('message', handleParentToken);
-  }, [authState, completeAuth]);
-
-
-
-
-  // Listen for auth token from parent TradeX app
-  useEffect(() => {
-    // Signal parent we're ready to receive auth
-    window.parent.postMessage({ type: 'TRADEX_READY' }, '*');
-
-    const handleParentAuth = async (event: MessageEvent) => {
-      if (event.data?.type !== 'TRADEX_AUTH') return;
-      const { token, accounts: parentAccounts, activeAccountId, wsUrl: parentWsUrl } = event.data;
-      if (!token || !parentAccounts?.length) return;
-
-      // Map accounts to iframe format — use per-account Deriv token, not Ory token
-      const mapped = parentAccounts.map((a: {account: string; token: string; account_type: string; currency?: string}) => ({
-        account_id: a.account,
-        account_type: a.account_type,
-        currency: a.currency ?? 'USD',
-        token: a.token, // This is the real Deriv token
-      }));
-
-      // Use the active account's Deriv token for auth_info
-      const targetId = activeAccountId ?? mapped[0]?.account_id;
-      const activeAcct = mapped.find((a: {account_id: string}) => a.account_id === targetId) ?? mapped[0];
-      const derivToken = activeAcct?.token ?? token;
-
-      const authInfo = {
-        access_token: derivToken,
-        token_type: 'Bearer',
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-      };
-      localStorage.setItem('auth_info', JSON.stringify(authInfo));
-      localStorage.setItem('deriv_accounts', JSON.stringify(mapped));
-      localStorage.setItem('active_loginid', activeAccountId ?? mapped[0]?.account_id);
-
-      // Use wsUrl sent from parent (already fetched with correct App ID)
-      setAccounts(mapped);
-      setActiveAccountId(targetId);
-      setAuthState('authenticated');
-      if (parentWsUrl) {
-        setWsUrl(parentWsUrl);
-        console.log('[TRADEX_AUTH] wsUrl set from parent:', parentWsUrl.slice(0, 40));
-      } else {
-        console.warn('[TRADEX_AUTH] no wsUrl received from parent');
-      }
-    };
-
-    window.addEventListener('message', handleParentAuth);
-    return () => window.removeEventListener('message', handleParentAuth);
-  }, []);
+  }, [authState]);
 
 
   const activeAccountIdRef = useRef<string | null>(null);
