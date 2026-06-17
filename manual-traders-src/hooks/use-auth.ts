@@ -94,6 +94,8 @@ export function useAuth(): UseAuthReturn {
           access_token,
           token_type: 'Bearer',
           expires_at: Math.floor(Date.now() / 1000) + 3600,
+          expires_in: 3600,
+          scope: 'read write',
           refresh_token: '',
         };
 
@@ -103,8 +105,11 @@ export function useAuth(): UseAuthReturn {
 
         const account = {
           account_id,
-          account_type: account_type ?? 'demo',
+          account_type: (account_type ?? 'demo') as 'demo' | 'real',
           currency: 'USD',
+          balance: '0',
+          group: '',
+          status: '',
         };
         localStorage.setItem('deriv_accounts', JSON.stringify([account]));
         localStorage.setItem('active_loginid', account_id);
