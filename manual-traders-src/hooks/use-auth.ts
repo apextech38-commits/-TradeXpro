@@ -76,59 +76,6 @@ export function useAuth(): UseAuthReturn {
   const [wsUrl, setWsUrl] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const initRef = useRef(false);
-  // Signal parent we're ready, then listen for DERIV_TOKEN auth
-  useEffect(() => {
-    window.parent.postMessage({ type: 'TRADEX_READY' }, '*');
-
-    const handleParentToken = async (event: MessageEvent) => {
-      if (event.origin !== 'https://tradexpro.co.ke') return;
-      if (event.data?.type !== 'DERIV_TOKEN') return;
-      if (authState === 'authenticated') return;
-
-      const { access_token, account_id, account_type } = event.data;
-      if (!access_token || !account_id) return;
-
-      try {
-        setAuthState('authenticating');
-        const authInfo: AuthInfo = {
-          access_token,
-          token_type: 'Bearer',
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-          expires_in: 3600,
-          scope: 'read write',
-          refresh_token: '',
-        };
-
-        localStorage.setItem('auth_info', JSON.stringify(authInfo));
-
-        const otpUrl = await getWebSocketOTP(account_id, authInfo, getAuthConfig().clientId);
-
-        const account = {
-          account_id,
-          account_type: (account_type ?? 'demo') as 'demo' | 'real',
-          currency: 'USD',
-          balance: '0',
-          group: '',
-          status: '',
-        };
-        localStorage.setItem('deriv_accounts', JSON.stringify([account]));
-        localStorage.setItem('active_loginid', account_id);
-
-        setAccounts([account]);
-        setActiveAccountId(account_id);
-        setWsUrl(otpUrl);
-    console.log('✅ wsUrl set in useAuth:', otpUrl);
-        setAuthState('authenticated');
-      } catch (err) {
-      console.error('❌ OTP fetch failed in useAuth:', err);
-        console.error('DERIV_TOKEN auth failed:', err);
-        setAuthState('unauthenticated');
-      }
-    };
-
-    window.addEventListener('message', handleParentToken);
-    return () => window.removeEventListener('message', handleParentToken);
-  }, [authState]);
 
 
   const activeAccountIdRef = useRef<string | null>(null);

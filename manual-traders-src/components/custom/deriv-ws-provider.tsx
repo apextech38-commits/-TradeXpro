@@ -1,54 +1,42 @@
 // manual-traders-src/components/custom/deriv-ws-provider.tsx
 'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
-import { useDerivWS } from '@deriv/core';
+import { useDerivWS } from '@/packages/core/src/react/useDerivWS';
 import { useAuth } from '@/hooks/use-auth';
-import type { DerivWS } from '@deriv/core';
+import type { DerivWS } from '@/packages/core/src/ws/deriv-ws';
 
 interface DerivWSContextValue {
   ws: DerivWS | null;
   isConnected: boolean;
+  isExhausted: boolean;
   isAuthenticatedSocketOpen: boolean;
-  wsUrl: string | undefined;
-  readyState: number;
+  auth: ReturnType<typeof useAuth>;
 }
 
 const DerivWSContext = createContext<DerivWSContextValue | null>(null);
 
 export function DerivWSProvider({ children }: { children: React.ReactNode }) {
-  const { wsUrl: authWsUrl, accountId } = useAuth();
+  const auth = useAuth();
+  const { wsUrl, activeAccountId } = auth;
 
-  const { ws, isConnected, wsUrl, readyState } = useDerivWS({
-    wsUrl: authWsUrl || undefined,
-    reconnectKey: accountId ? `auth:${accountId}` : 'public',
+  const { ws, isConnected, isExhausted } = useDerivWS({
+    url: wsUrl || undefined,
+    accountId: activeAccountId ?? undefined,
   });
 
   const [isAuthenticatedSocketOpen, setIsAuthenticatedSocketOpen] = useState(false);
 
   useEffect(() => {
-    // SIMPLE CHECK: Is the URL authenticated AND is the socket open?
     const isAuthUrl = wsUrl?.includes('/demo') || wsUrl?.includes('/real');
-    const isOpen = readyState === 1;
-    const result = isAuthUrl && isOpen;
-
-    setIsAuthenticatedSocketOpen(result);
-
-    // Log what's happening
-    console.log('🔐 Auth status:', {
-      wsUrl,
-      isAuthUrl,
-      isOpen,
-      result,
-      accountId
-    });
-  }, [wsUrl, readyState, accountId]);
+    setIsAuthenticatedSocketOpen(!!(isAuthUrl && isConnected));
+  }, [wsUrl, isConnected]);
 
   const value: DerivWSContextValue = {
     ws,
     isConnected,
+    isExhausted,
     isAuthenticatedSocketOpen,
-    wsUrl,
-    readyState,
+    auth,
   };
 
   return (

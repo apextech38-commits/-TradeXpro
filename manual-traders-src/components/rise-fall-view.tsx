@@ -9,14 +9,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useIsMobile } from '@/hooks/use-is-mobile';
 import { useContractMarkers } from '@/hooks/use-contract-markers';
 import { TradeControls } from './trade-controls';
-import type {
-  AuthState,
-  DerivAccount,
-  ActiveSymbol,
-  ProposalInfo,
-  BuyResult,
-  DerivWS,
-} from '@deriv/core';
+import { useDerivWSContext } from '@/components/custom/deriv-ws-provider';
+import type { DerivWS } from '@/packages/core/src/ws/deriv-ws';
+
+// Local temporary type fallbacks for missing @deriv/core definitions
+type AuthState = any;
+type DerivAccount = any;
+type ActiveSymbol = any;
+type ProposalInfo = any;
+type BuyResult = any;
 import type { Direction, DurationSelectUnit, DurationOption } from '../lib/types';
 import type { UseSmartChartsApiReturn } from '@/hooks/use-smartcharts-api';
 import type { SmartChartChartData } from '@/hooks/use-smartchart-chart-data';
@@ -141,6 +142,7 @@ export function RiseFallView({
   appName,
 }: RiseFallViewProps) {
   const isMobile = useIsMobile();
+  const { isAuthenticatedSocketOpen } = useDerivWSContext();
   const contractMarkers = useContractMarkers(openPositions, activeSymbol?.underlying_symbol, isMobile);
 
   if (error) {
@@ -241,6 +243,7 @@ export function RiseFallView({
                     buyError={buyError}
                     onClearBuyResult={clearBuyResult}
                     isAuthenticated={authState === 'authenticated'}
+                    isAuthenticatedSocketOpen={isAuthenticatedSocketOpen}
                   />
                 </CardContent>
               </Card>

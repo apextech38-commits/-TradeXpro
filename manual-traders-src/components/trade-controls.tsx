@@ -41,6 +41,8 @@ interface TradeControlsProps {
   onClearBuyResult: () => void;
   /** Whether the user is authenticated — shows the View your positions link when true. */
   isAuthenticated?: boolean;
+  /** Whether the authenticated WebSocket is open — gates the buy button. */
+  isAuthenticatedSocketOpen?: boolean;
 }
 
 export function TradeControls({
@@ -69,6 +71,7 @@ export function TradeControls({
   buyError,
   onClearBuyResult,
   isAuthenticated,
+  isAuthenticatedSocketOpen = false,
 }: TradeControlsProps) {
   useEffect(() => {
     if (buyError) {
@@ -206,7 +209,7 @@ export function TradeControls({
         <Button
           className="w-full rounded-full bg-primary hover:bg-primary/90 text-primary-foreground"
           size="lg"
-          disabled={!isConnected || !proposal || isBuying}
+          disabled={!isAuthenticatedSocketOpen || !proposal || isBuying}
           onClick={onBuy}
         >
           {isBuying ? (

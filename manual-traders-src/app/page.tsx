@@ -1,13 +1,16 @@
 // manual-traders-src/app/page.tsx or wherever you use these hooks
 'use client';
 
-import { useBuy, useProposal, useTicks } from '@deriv/core';
+import { useBuy } from '@/packages/core/src/react/useBuy';
+import { useProposal } from '@/packages/core/src/react/useProposal';
+import { useTicks } from '@/packages/core/src/react/useTicks';
 import { useDerivWSContext } from '@/components/custom/deriv-ws-provider';
 import { useAuth } from '@/hooks/use-auth';
 
 export default function TradingPage() {
-  const { ws, isConnected, isAuthenticatedSocketOpen, wsUrl } = useDerivWSContext();
+  const { ws, isConnected, isAuthenticatedSocketOpen } = useDerivWSContext();
   const auth = useAuth();
+  const { wsUrl } = auth;
   // normalize possible account fields from useAuth
   const accountId = (auth as any)?.accountId ?? (auth as any)?.account?.id ?? (auth as any)?.account?.loginid ?? '';
   const accountType = (auth as any)?.accountType ?? (auth as any)?.account?.type ?? (auth as any)?.account_type ?? '';
