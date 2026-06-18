@@ -17,18 +17,15 @@ export default function RiseFallView({ symbol = '1HZ100V' }: RiseFallViewProps) 
     setStatusMessage(null);
 
     try {
-      // Pull down the active underlying websocket socket from the window layout context safely
-      const globalWS = (window as any).derivWS || (window as any).ws;
+      // Direct access to the template's global app ws channels
+      const activeWS = (window as any).derivWS || (window as any).ws || (window as any).socket;
       
-      if (!globalWS) {
-        setStatusMessage({ type: 'error', text: 'Trading connection initialization pending. Please try again in a moment.' });
+      if (!activeWS) {
+        setStatusMessage({ type: 'error', text: 'Connecting to server... Please try again in a few seconds.' });
         setIsSubmitting(false);
         return;
       }
 
-      console.log(`[TradeX Link] Routing ${contractType} transaction down active authenticated channel...`);
-      
-      // Dispatch the payload down the primary app channel directly
       const payload = {
         buy: 1,
         price: parseFloat(stake),
@@ -44,16 +41,17 @@ export default function RiseFallView({ symbol = '1HZ100V' }: RiseFallViewProps) 
         }
       };
 
-      // Safely call the globally exposed send method handled by the main application session
-      const response = typeof globalWS.send === 'function' 
-        ? await globalWS.send(payload)
-        : await globalWS.sendRaw(JSON.stringify(payload));
+      console.log(`[TradeX Core] Sending order via existing active channel.`);
+      
+      if (typeof activeWS.send === 'function') {
+        activeWS.send(JSON.stringify(payload));
+      } else if (typeof activeWS.sendRaw === 'function') {
+        activeWS.sendRaw(JSON.stringify(payload));
+      }
 
-      console.log("[TradeX Link] Transaction result:", response);
-      setStatusMessage({ type: 'success', text: `Contract purchased successfully!` });
+      setStatusMessage({ type: 'success', text: 'Order request submitted!' });
     } catch (error: any) {
-      console.error("[TradeX Link] Execution failure:", error);
-      setStatusMessage({ type: 'error', text: error?.message || 'Transaction failed. Verify authorization tokens.' });
+      setStatusMessage({ type: 'error', text: error?.message || 'Transaction failed.' });
     } finally {
       setIsSubmitting(false);
     }
