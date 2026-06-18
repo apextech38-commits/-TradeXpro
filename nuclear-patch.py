@@ -1,13 +1,13 @@
 import os
 import time
 
-# Create a unique timestamp seed to smash Cloudflare's build cache
+# Completely separate cache-busting seed
 CACHE_BUST_SEED = str(int(time.time()))
 
-CODE_PAYLOAD = f"""import React, { { useState, useEffect } } from 'react';
+CODE_PAYLOAD = """import React, { useState, useEffect } from 'react';
 
-// CACHE BUST ENFORCER SEED: {CACHE_BUST_SEED}
-export default function RiseFallView({ { symbol = '1HZ100V' } }) { {
+// CACHE BUST ENFORCER SEED: __CACHE_BUST__
+export default function RiseFallView({ symbol = '1HZ100V' }) {
   const [stake, setStake] = useState('10');
   const [duration, setDuration] = useState(1);
   const [durationUnit, setDurationUnit] = useState('t');
@@ -19,11 +19,10 @@ export default function RiseFallView({ { symbol = '1HZ100V' } }) { {
     setIsSubmitting(true);
     setStatusMessage(null);
     try {
-      // Direct variable probing - intercepting layout scopes
       const activeWS = window.derivWS || window.ws || window.socket;
       
       if (!activeWS) {
-        setStatusMessage({ { type: 'error', text: 'Connecting channel... Click again.' } });
+        setStatusMessage({ type: 'error', text: 'Connecting channel... Click again.' });
         return;
       }
 
@@ -42,7 +41,7 @@ export default function RiseFallView({ { symbol = '1HZ100V' } }) { {
         }
       };
       
-      console.log("[Nuclear Core] Dispatched:", payload);
+      console.log("[Nuclear V2 Live] Dispatched direct frame:", payload);
       
       if (typeof activeWS.send === 'function') {
         activeWS.send(JSON.stringify(payload));
@@ -50,9 +49,9 @@ export default function RiseFallView({ { symbol = '1HZ100V' } }) { {
         activeWS.sendRaw(JSON.stringify(payload));
       }
       
-      setStatusMessage({ { type: 'success', text: 'Transaction processed!' } });
+      setStatusMessage({ type: 'success', text: 'Order request submitted!' });
     } catch (err) {
-      setStatusMessage({ { type: 'error', text: err.message } });
+      setStatusMessage({ type: 'error', text: err.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -89,26 +88,26 @@ export default function RiseFallView({ { symbol = '1HZ100V' } }) { {
         <button onClick={() => handlePurchase('CALL')} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium p-3 rounded-xl transition disabled:opacity-50">Rise</button>
         <button onClick={() => handlePurchase('PUT')} disabled={isSubmitting} className="bg-rose-600 hover:bg-rose-500 text-white font-medium p-3 rounded-xl transition disabled:opacity-50">Fall</button>
       </div>
-      { {statusMessage && (
-        <div className={`p-3 rounded-lg text-xs font-medium ${ {
+      {statusMessage && (
+        <div className={`p-3 rounded-lg text-xs font-medium ${
           statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
-        } }`}>
-          { {statusMessage.text} }
+        }`}>
+          {statusMessage.text}
         </div>
-      )} }
+      )}
     </div>
   );
-} }
-"""
+}
+""".replace("__CACHE_BUST__", CACHE_BUST_SEED)
 
-print("⚠️ Re-scanning workspace directories with Cache-Bust signature...")
+print("⚠️ Re-scanning workspace directories with clean placeholder replacement...")
 for root, dirs, files in os.walk("/workspaces/-TradeXpro"):
     if any(p in root for p in ["node_modules", ".git", ".next", "dist"]):
         continue
     for file in files:
         if file == "rise-fall-view.tsx":
             target_path = os.path.join(root, file)
-            print(f"🔥 Overwriting module target: {target_path}")
+            print(f"🔥 Overwriting target component file: {target_path}")
             with open(target_path, "w") as f:
                 f.write(CODE_PAYLOAD)
 
