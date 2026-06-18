@@ -1,10 +1,11 @@
 import os
 import time
+import re
 
-# Create a dynamic string literal that cannot be minified away
 CACHE_BUST_SEED = str(int(time.time()))
 
-CODE_PAYLOAD = """import React, { useState, useEffect } from 'react';
+# --- PHASE 1: OVERWRITE COMPONENT SOURCE ---
+CODE_PAYLOAD = """import React, { useState } from 'react';
 
 export default function RiseFallView({ symbol = '1HZ100V' }) {
   const [stake, setStake] = useState('10');
@@ -13,12 +14,6 @@ export default function RiseFallView({ symbol = '1HZ100V' }) {
   const [allowEquals, setAllowEquals] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
-
-  // Force a unique runtime fingerprint that breaks Vite's hash indexing
-  useEffect(() => {
-    const buildId = "__CACHE_BUST__";
-    console.log("[TradeX Live] System unique signature initialization:", buildId);
-  }, []);
 
   const handlePurchase = async (contractType) => {
     setIsSubmitting(true);
@@ -46,7 +41,7 @@ export default function RiseFallView({ symbol = '1HZ100V' }) {
         }
       };
       
-      console.log("[Nuclear V2 Live] Dispatched direct frame:", payload);
+      console.log("[Nuclear Direct Dispatch]:", payload);
       
       if (typeof activeWS.send === 'function') {
         activeWS.send(JSON.stringify(payload));
@@ -65,7 +60,7 @@ export default function RiseFallView({ symbol = '1HZ100V' }) {
   return (
     <div className="p-4 bg-background rounded-xl border space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Strategy: Rise/Fall (Nuclear V2)</h3>
+        <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Strategy: Rise/Fall (Nuclear Live)</h3>
       </div>
       <div className="space-y-2">
         <label className="text-xs font-medium text-muted-foreground">Stake (USD)</label>
@@ -103,17 +98,34 @@ export default function RiseFallView({ symbol = '1HZ100V' }) {
     </div>
   );
 }
-""".replace("__CACHE_BUST__", CACHE_BUST_SEED)
+"""
 
-print("⚠️ Re-scanning workspace directories with code-level string mutation...")
 for root, dirs, files in os.walk("/workspaces/-TradeXpro"):
     if any(p in root for p in ["node_modules", ".git", ".next", "dist"]):
         continue
     for file in files:
         if file == "rise-fall-view.tsx":
-            target_path = os.path.join(root, file)
-            print(f"🔥 Overwriting target component file: {target_path}")
-            with open(target_path, "w") as f:
+            with open(os.path.join(root, file), "w") as f:
                 f.write(CODE_PAYLOAD)
 
-print("✅ Complete.")
+# --- PHASE 2: MUTATE GENERATED PRODUCTION ASSETS POST-BUILD ---
+dist_html = "/workspaces/-TradeXpro/artifacts/tradex/dist/public/index.html"
+if os.path.exists(dist_html):
+    print(f"🧬 Post-processing production entry point: {dist_html}")
+    with open(dist_html, "r") as f:
+        html_content = f.read()
+
+    # Force mutate asset script references to clear Edge Server indexing caches
+    mutated_content = re.sub(
+        r'src="([^"]+)\.js"', 
+        f'src="\\1.js?v={CACHE_BUST_SEED}"', 
+        html_content
+    )
+    
+    # Inject a unique tracking meta property tag to guarantee the file signature shifts
+    tracking_meta = f'<meta name="build-instant" content="{CACHE_BUST_SEED}">'
+    mutated_content = mutated_content.replace("<head>", f"<head>{tracking_meta}")
+
+    with open(dist_html, "w") as f:
+        f.write(mutated_content)
+    print("🚀 Asset reference mutated successfully.")
