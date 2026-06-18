@@ -1,12 +1,11 @@
 import os
 import time
 
-# Completely separate cache-busting seed
+# Create a dynamic string literal that cannot be minified away
 CACHE_BUST_SEED = str(int(time.time()))
 
 CODE_PAYLOAD = """import React, { useState, useEffect } from 'react';
 
-// CACHE BUST ENFORCER SEED: __CACHE_BUST__
 export default function RiseFallView({ symbol = '1HZ100V' }) {
   const [stake, setStake] = useState('10');
   const [duration, setDuration] = useState(1);
@@ -14,6 +13,12 @@ export default function RiseFallView({ symbol = '1HZ100V' }) {
   const [allowEquals, setAllowEquals] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
+
+  // Force a unique runtime fingerprint that breaks Vite's hash indexing
+  useEffect(() => {
+    const buildId = "__CACHE_BUST__";
+    console.log("[TradeX Live] System unique signature initialization:", buildId);
+  }, []);
 
   const handlePurchase = async (contractType) => {
     setIsSubmitting(true);
@@ -100,7 +105,7 @@ export default function RiseFallView({ symbol = '1HZ100V' }) {
 }
 """.replace("__CACHE_BUST__", CACHE_BUST_SEED)
 
-print("⚠️ Re-scanning workspace directories with clean placeholder replacement...")
+print("⚠️ Re-scanning workspace directories with code-level string mutation...")
 for root, dirs, files in os.walk("/workspaces/-TradeXpro"):
     if any(p in root for p in ["node_modules", ".git", ".next", "dist"]):
         continue
