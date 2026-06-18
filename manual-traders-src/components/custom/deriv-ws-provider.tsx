@@ -10,7 +10,6 @@ interface DerivWSContextValue {
   isExhausted: boolean;
   isAuthenticatedSocketOpen: boolean;
   wsUrl: string | null;
-  lastOtp: any;
   auth: ReturnType<typeof useAuth>;
 }
 
@@ -26,38 +25,39 @@ export function DerivWSProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [isAuthenticatedSocketOpen, setIsAuthenticatedSocketOpen] = useState(false);
-  const [lastOtp, setLastOtp] = useState<any>(null);
 
-  // 4) Monitor URL state transitions and update/swap the socket configuration
   useEffect(() => {
     if (ws && wsUrl) {
       const isDemoEnv = activeAccount?.type === 'demo';
       const strictUrlVerified = isDemoEnv 
-        ? wsUrl.includes('/trading/v1/options/ws/demo') 
-        : wsUrl.includes('/trading/v1/options/ws/real');
+        ? wsUrl.includes('/demo') || wsUrl.includes('demo?otp=')
+        : wsUrl.includes('/real') || wsUrl.includes('real?otp=');
 
       if (strictUrlVerified && ws.url !== wsUrl) {
-        setLastOtp({ account_id: activeAccountId, timestamp: Date.now() });
         ws.swapSocketAuthenticated(wsUrl).catch(console.error);
       }
     }
   }, [wsUrl, ws, activeAccountId, activeAccount?.type]);
 
-  // 2) Run the strict connection readiness guard check
   useEffect(() => {
-    if (!ws || !wsUrl) {
+    if (!isConnected) {
       setIsAuthenticatedSocketOpen(false);
       return;
     }
+    
+    // If no explicit auth URL is present, default to true if the primary socket is connected safely
+    if (!wsUrl) {
+      setIsAuthenticatedSocketOpen(true);
+      return;
+    }
+
     const isDemoEnv = activeAccount?.type === 'demo';
     const strictUrlVerified = isDemoEnv 
-      ? wsUrl.includes('/trading/v1/options/ws/demo') 
-      : wsUrl.includes('/trading/v1/options/ws/real');
+      ? wsUrl.includes('/demo') || wsUrl.includes('demo?otp=')
+      : wsUrl.includes('/real') || wsUrl.includes('real?otp=');
 
-    const matchedAccount = lastOtp?.account_id === activeAccountId;
-    
-    setIsAuthenticatedSocketOpen(!!(isConnected && strictUrlVerified && matchedAccount));
-  }, [wsUrl, isConnected, ws, activeAccountId, activeAccount?.type, lastOtp]);
+    setIsAuthenticatedSocketOpen(!!(isConnected && strictUrlVerified));
+  }, [wsUrl, isConnected, activeAccount?.type]);
 
   const value: DerivWSContextValue = {
     ws,
@@ -65,7 +65,6 @@ export function DerivWSProvider({ children }: { children: React.ReactNode }) {
     isExhausted,
     isAuthenticatedSocketOpen,
     wsUrl,
-    lastOtp,
     auth,
   };
 

@@ -24,20 +24,24 @@ export class DerivWS {
   public url: string;
   private isConnecting = false;
 
-  // 3) Queueing up trading commands cleanly
   private tradeQueue: string[] = [];
   public wsReadyPromise: Promise<void> = Promise.resolve();
   private wsReadyResolve: () => void = () => {};
 
   constructor(url?: string) {
     this.url = url ?? getPublicWsUrl();
-    this.resetReadyPromise();
   }
 
-  private resetReadyPromise() {
+  private makeReadyPending() {
     this.wsReadyPromise = new Promise((resolve) => {
       this.wsReadyResolve = resolve;
     });
+  }
+
+  private resolveReady() {
+    this.wsReadyResolve();
+    // Keep it resolved
+    this.wsReadyPromise = Promise.resolve();
   }
 
   onConnectionStateChange(handler: ConnectionStateHandler): () => void {
@@ -61,47 +65,38 @@ export class DerivWS {
   }
 
   updateUrl(url: string): void {
-    console.log("[DIAGNOSTIC URL]: Passed directly into custom connection instance:", url);
     this.url = url;
   }
 
-  // 5) Controlled atomic switch hook
   async swapSocketAuthenticated(newUrl: string): Promise<void> {
-    console.log(`[SWAP LOG] ${new Date().toISOString()} Initializing clean socket switch.`);
+    console.log(`[SWAP LOG] Swapping connection framework target to authorized domain route.`);
+    this.makeReadyPending();
     
-    // Step 1 & 2: Flush outstanding maps & clean subscriptions on old context
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.log(`[SWAP LOG] ${new Date().toISOString()} Sending forget sequences to old frame channels.`);
       try {
         const ids = Array.from(this.subscriptionHandlers.keys());
         if (ids.length) {
           ids.forEach(id => this.ws?.send(JSON.stringify({ forget: id, req_id: ++this.reqIdCounter })));
-        } else {
-          this.ws.send(JSON.stringify({ forget_all: ['ticks', 'proposal'], req_id: ++this.reqIdCounter }));
         }
       } catch (e) { console.error(e); }
     }
 
-    // Step 3: Wait a short tick to flush pipeline queues
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 100));
     this.subscriptionHandlers.clear();
 
-    // Step 4: Disconnect old client safely
     this.stopPing();
     if (this.ws) {
-      console.log(`[SWAP LOG] ${new Date().toISOString()} Terminating old active socket.`);
       try { this.ws.close(); } catch (_) {}
       this.ws = null;
     }
 
-    // Step 5: Reset tracking variables and establish fresh connection
     this.updateUrl(newUrl);
-    this.resetReadyPromise();
     await this.connect();
   }
 
   connect(): Promise<void> {
     if (this.ws?.readyState === WebSocket.OPEN) {
+      this.resolveReady();
       return Promise.resolve();
     }
     if (this.isConnecting) {
@@ -111,18 +106,23 @@ export class DerivWS {
     this.isConnecting = true;
 
     return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(this.url);
+      try {
+        this.ws = new WebSocket(this.url);
+      } catch (err) {
+        this.isConnecting = false;
+        this.resolveReady();
+        reject(err);
+        return;
+      }
 
       this.ws.onopen = () => {
-        console.log(`[SWAP LOG] ${new Date().toISOString()} New authorized target context flipped to OPEN`);
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.startPing();
         this.notifyConnectionState(true);
-        this.wsReadyResolve();
+        this.resolveReady();
         resolve();
 
-        // Flush out any queued payload messages securely
         while (this.tradeQueue.length) {
           const msg = this.tradeQueue.shift();
           if (msg) this.ws?.send(msg);
@@ -136,6 +136,7 @@ export class DerivWS {
 
       this.ws.onerror = () => {
         this.isConnecting = false;
+        this.resolveReady();
         reject(new Error('WebSocket connection error'));
       };
 
@@ -143,20 +144,20 @@ export class DerivWS {
         this.isConnecting = false;
         this.stopPing();
         this.notifyConnectionState(false);
+        this.resolveReady();
         this.attemptReconnect();
       };
     });
   }
 
   async send<T = Record<string, unknown>>(payload: Record<string, unknown>): Promise<T> {
-    const isTradingAction = !!(payload.buy || payload.proposal);
-    if (isTradingAction) {
+    if (this.ws?.readyState !== WebSocket.OPEN && (payload.buy || payload.proposal)) {
       await this.wsReadyPromise;
     }
 
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        if (isTradingAction) {
+        if (payload.buy || payload.proposal) {
           this.tradeQueue.push(JSON.stringify({ ...payload, req_id: ++this.reqIdCounter }));
           return;
         }
@@ -180,7 +181,17 @@ export class DerivWS {
     payload: Record<string, unknown>,
     handler: MessageHandler
   ): Promise<{ subscriptionId: string | null; unsubscribe: () => void }> {
-    await this.wsReadyPromise;
+    
+    // Check if we are already listening to this asset symbol stream to stop duplicate subscribe floods
+    if (payload.ticks && typeof payload.ticks === 'string') {
+      const activeSymbol = payload.ticks;
+      if (this.subscriptionHandlers.has(activeSymbol)) {
+        return resolve({
+          subscriptionId: activeSymbol,
+          unsubscribe: () => {}
+        });
+      }
+    }
 
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -193,7 +204,7 @@ export class DerivWS {
 
       this.pendingRequests.set(reqId, {
         resolve: (data) => {
-          const subscriptionId = this.extractSubscriptionId(data);
+          const subscriptionId = this.extractSubscriptionId(data) || (payload.ticks as string) || null;
           if (subscriptionId) {
             this.subscriptionHandlers.set(subscriptionId, handler);
           }
@@ -235,6 +246,7 @@ export class DerivWS {
     }
     this.pendingRequests.clear();
     this.subscriptionHandlers.clear();
+    this.resolveReady();
   }
 
   get isConnected(): boolean {
@@ -260,6 +272,14 @@ export class DerivWS {
     const subId = this.extractSubscriptionId(data);
     if (subId && this.subscriptionHandlers.has(subId)) {
       this.subscriptionHandlers.get(subId)!(data);
+    }
+    
+    // Fallback search checking using specific asset symbol keys
+    if (data.tick && typeof data.tick === 'object' && !subId) {
+      const sym = (data.tick as Record<string, string>).symbol;
+      if (sym && this.subscriptionHandlers.has(sym)) {
+        this.subscriptionHandlers.get(sym)!(data);
+      }
     }
 
     if (reqId && this.pendingRequests.has(reqId)) {
