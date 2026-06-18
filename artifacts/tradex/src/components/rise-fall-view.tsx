@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
-import { useDerivWSContext } from '../../../components/custom/deriv-ws-provider';
 
 interface RiseFallViewProps {
   symbol?: string;
 }
 
 export default function RiseFallView({ symbol = '1HZ100V' }: RiseFallViewProps) {
-  const { ws, isConnected, isAuthenticatedSocketOpen } = useDerivWSContext();
   const [stake, setStake] = useState<string>('10');
   const [duration, setDuration] = useState<number>(1);
   const [durationUnit, setDurationUnit] = useState<string>('t');
@@ -15,31 +13,23 @@ export default function RiseFallView({ symbol = '1HZ100V' }: RiseFallViewProps) 
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handlePurchase = async (contractType: 'CALL' | 'PUT') => {
-    if (!ws || !isConnected) {
-      setStatusMessage({ type: 'error', text: 'Trading terminal is disconnected. Please refresh.' });
-      return;
-    }
-
     setIsSubmitting(true);
     setStatusMessage(null);
 
     try {
-      const sessionToken = localStorage.getItem('authToken') || localStorage.getItem('config.token');
+      // Pull down the active underlying websocket socket from the window layout context safely
+      const globalWS = (window as any).derivWS || (window as any).ws;
       
-      if (!sessionToken) {
-        setStatusMessage({ type: 'error', text: 'Purchase Failed: Please log in.' });
+      if (!globalWS) {
+        setStatusMessage({ type: 'error', text: 'Trading connection initialization pending. Please try again in a moment.' });
         setIsSubmitting(false);
         return;
       }
 
-      // Only send authorization if the socket isn't already marked open and authenticated
-      if (!isAuthenticatedSocketOpen) {
-        console.log("[TradeX Link] Initializing fresh authenticated session handshake...");
-        await ws.send({ authorize: sessionToken });
-      }
-
-      console.log(`[TradeX Link] Processing authenticated ${contractType} proposal contract...`);
-      const response = await ws.send({
+      console.log(`[TradeX Link] Routing ${contractType} transaction down active authenticated channel...`);
+      
+      // Dispatch the payload down the primary app channel directly
+      const payload = {
         buy: 1,
         price: parseFloat(stake),
         parameters: {
@@ -52,18 +42,18 @@ export default function RiseFallView({ symbol = '1HZ100V' }: RiseFallViewProps) 
           symbol: symbol,
           barrier: allowEquals ? '=' : undefined
         }
-      });
+      };
 
-      console.log("[TradeX Link] Purchase accepted:", response);
+      // Safely call the globally exposed send method handled by the main application session
+      const response = typeof globalWS.send === 'function' 
+        ? await globalWS.send(payload)
+        : await globalWS.sendRaw(JSON.stringify(payload));
+
+      console.log("[TradeX Link] Transaction result:", response);
       setStatusMessage({ type: 'success', text: `Contract purchased successfully!` });
     } catch (error: any) {
-      console.error("[TradeX Link] Transaction failure details:", error);
-      // Suppress the streaming subscription notice from showing up as an aggressive error message modal
-      if (error?.message?.includes('already subscribed')) {
-        setStatusMessage({ type: 'success', text: 'Order sent successfully!' });
-      } else {
-        setStatusMessage({ type: 'error', text: error?.message || 'Purchase Failed: Please log in.' });
-      }
+      console.error("[TradeX Link] Execution failure:", error);
+      setStatusMessage({ type: 'error', text: error?.message || 'Transaction failed. Verify authorization tokens.' });
     } finally {
       setIsSubmitting(false);
     }
