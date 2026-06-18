@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import os
+
+CODE_PAYLOAD = """import React, { useState } from 'react';
 
 export default function RiseFallView({ symbol = '1HZ100V' }: { symbol?: string }) {
   const [stake, setStake] = useState('10');
@@ -108,3 +110,17 @@ export default function RiseFallView({ symbol = '1HZ100V' }: { symbol?: string }
     </div>
   );
 }
+"""
+
+print("⚠️ Beginning absolute repository scan...")
+for root, dirs, files in os.walk("/workspaces/-TradeXpro"):
+    if "node_modules" in root or ".git" in root or ".next" in root or "dist" in root:
+        continue
+    for file in files:
+        if file == "rise-fall-view.tsx":
+            target_path = os.path.join(root, file)
+            print(f"🔥 Overwriting rogue component duplicate found at: {target_path}")
+            with open(target_path, "w") as f:
+                f.write(CODE_PAYLOAD)
+
+print("✅ Repository clean. Target modules completely overwritten.")
