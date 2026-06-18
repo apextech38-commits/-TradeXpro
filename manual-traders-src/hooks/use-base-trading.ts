@@ -16,6 +16,8 @@ export interface UseBaseTradingParams {
   isExhausted?: boolean;
   /** True when the user is authenticated (wsUrl is set). Used to gate auth-only calls. */
   isAuthenticated: boolean;
+  /** True when the authenticated socket connection is fully ready for protected requests. */
+  isAuthenticatedSocketOpen?: boolean;
   onAuthWSFailed?: () => void;
   /** Contract types used to filter available symbols and duration limits. */
   contractTypes: string[];
@@ -58,6 +60,7 @@ export function useBaseTrading({
   isConnected,
   isExhausted,
   isAuthenticated,
+  isAuthenticatedSocketOpen,
   onAuthWSFailed,
   contractTypes,
 }: UseBaseTradingParams): UseBaseTradingReturn {
@@ -80,7 +83,13 @@ export function useBaseTrading({
     isLoading: symbolsLoading,
   } = useActiveSymbols(ws, isConnected, contractTypes);
 
-  const { currentTick, prices, pipSize } = useTicks(ws, isConnected, activeSymbol);
+  const { currentTick, prices, pipSize } = useTicks(
+    ws,
+    isConnected,
+    activeSymbol,
+    1000,
+    isAuthenticatedSocketOpen
+  );
 
   // Surface WS-level errors as toasts. Buy and sell errors are handled by
   // their own hooks and are excluded here to avoid double-reporting.

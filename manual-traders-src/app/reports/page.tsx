@@ -21,9 +21,16 @@ const RISE_FALL_CONTRACT_LABELS: Record<string, string> = {
 export default function ReportsPage() {
   const logoSrc = useLogoSrc();
   const router = useRouter();
-  const { ws, isConnected, isExhausted, auth } = useDerivWSContext();
+  const { ws, isConnected, isExhausted, isAuthenticatedSocketOpen, auth } = useDerivWSContext();
   const { authState, accounts, activeAccount, login, signUp, logout, switchAccount } = auth;
-  const trading = useRiseFallTrading({ ws, isConnected, isExhausted, isAuthenticated: !!auth.wsUrl, onAuthWSFailed: logout });
+  const trading = useRiseFallTrading({
+    ws,
+    isConnected,
+    isExhausted,
+    isAuthenticated: !!auth.wsUrl,
+    isAuthenticatedSocketOpen,
+    onAuthWSFailed: logout,
+  });
 
   useEffect(() => {
     if (authState === 'unauthenticated' || authState === 'error') {

@@ -57,9 +57,18 @@ interface UseRiseFallTradingReturn {
   clearSellError: () => void;
 }
 
-export type UseRiseFallTradingParams = Pick<UseBaseTradingParams, 'ws' | 'isConnected' | 'isExhausted' | 'isAuthenticated' | 'onAuthWSFailed'>;
+export type UseRiseFallTradingParams = Pick<UseBaseTradingParams, 'ws' | 'isConnected' | 'isExhausted' | 'isAuthenticated' | 'onAuthWSFailed'> & {
+  isAuthenticatedSocketOpen: boolean;
+};
 
-export function useRiseFallTrading({ ws, isConnected, isExhausted, isAuthenticated, onAuthWSFailed }: UseRiseFallTradingParams): UseRiseFallTradingReturn {
+export function useRiseFallTrading({
+  ws,
+  isConnected,
+  isExhausted,
+  isAuthenticated,
+  isAuthenticatedSocketOpen,
+  onAuthWSFailed,
+}: UseRiseFallTradingParams): UseRiseFallTradingReturn {
   const {
     ws: tradingWs,
     isConnected: tradingIsConnected,
@@ -78,7 +87,15 @@ export function useRiseFallTrading({ ws, isConnected, isExhausted, isAuthenticat
     sellingId,
     sellError,
     clearSellError,
-  } = useBaseTrading({ ws, isConnected, isExhausted, isAuthenticated, onAuthWSFailed, contractTypes: CONTRACT_TYPES });
+  } = useBaseTrading({
+    ws,
+    isConnected,
+    isExhausted,
+    isAuthenticated,
+    isAuthenticatedSocketOpen,
+    onAuthWSFailed,
+    contractTypes: CONTRACT_TYPES,
+  });
 
   const [direction, setDirection] = useState<Direction>('CALL');
   const [allowEquals, setAllowEquals] = useState<boolean>(false);
@@ -127,7 +144,7 @@ export function useRiseFallTrading({ ws, isConnected, isExhausted, isAuthenticat
   }, [durationOptions]);
 
   const { buyContract: buyWithProposal, isBuying, buyResult, buyError, clearBuyResult } =
-    useBuy(tradingWs, tradingIsConnected);
+    useBuy(tradingWs, tradingIsConnected, isAuthenticatedSocketOpen);
 
   const proposalParams: ProposalParams | null = useMemo(() => {
     if (isBuying || !activeSymbol || !durationOptions.length) return null;
@@ -159,7 +176,12 @@ export function useRiseFallTrading({ ws, isConnected, isExhausted, isAuthenticat
     return { ...base, duration, durationUnit };
   }, [activeSymbol, direction, allowEquals, stake, duration, durationUnit, endDate, endTime, isBuying, durationOptions, durationOptionsSymbol]);
 
-  const { proposal } = useProposal(tradingWs, tradingIsConnected, proposalParams);
+  const { proposal } = useProposal(
+    tradingWs,
+    tradingIsConnected,
+    proposalParams,
+    isAuthenticatedSocketOpen
+  );
 
   const buyContract = useCallback(async () => {
     if (proposal) await buyWithProposal(proposal);
