@@ -1,12 +1,2 @@
-/*.js    /:splat.js    200
-/*.css   /:splat.css   200
-/*.map   /:splat.map   200
-/*.svg   /:splat.svg   200
-/*.wasm  /:splat.wasm  200
-/*.mjs   /:splat.mjs   200
-/*.json  /:splat.json  200
-/*.png   /:splat.png   200
-/chart/*  /chart/:splat  200
-/assets/* /assets/:splat 200
-/manualtraders/_next/* /manualtraders/_next/:splat 200
-/*       /index.html   200
+/assets/* /assets/:splat  200
+/* /index.html     200
