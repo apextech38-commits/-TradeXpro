@@ -26,6 +26,7 @@ export function DerivWSProvider({ children }: { children: React.ReactNode }) {
 
   const [isAuthenticatedSocketOpen, setIsAuthenticatedSocketOpen] = useState(false);
 
+  // Synchronize authenticated session state across framework contexts
   useEffect(() => {
     if (ws && wsUrl) {
       const isDemoEnv = activeAccount?.type === 'demo';
@@ -39,24 +40,25 @@ export function DerivWSProvider({ children }: { children: React.ReactNode }) {
     }
   }, [wsUrl, ws, activeAccountId, activeAccount?.type]);
 
+  // Handle fallback to verify the socket context has authentication credentials
   useEffect(() => {
     if (!isConnected) {
       setIsAuthenticatedSocketOpen(false);
       return;
     }
     
-    // If no explicit auth URL is present, default to true if the primary socket is connected safely
-    if (!wsUrl) {
-      setIsAuthenticatedSocketOpen(true);
-      return;
+    // Attempt to pull a fallback session token if the local hook context is currently empty
+    let tokenPresent = !!wsUrl;
+    if (!tokenPresent && typeof window !== 'undefined') {
+      const fallbackToken = localStorage.getItem('authToken') || localStorage.getItem('config.token');
+      if (fallbackToken) {
+        tokenPresent = true;
+      }
     }
 
-    const isDemoEnv = activeAccount?.type === 'demo';
-    const strictUrlVerified = isDemoEnv 
-      ? wsUrl.includes('/demo') || wsUrl.includes('demo?otp=')
-      : wsUrl.includes('/real') || wsUrl.includes('real?otp=');
-
-    setIsAuthenticatedSocketOpen(!!(isConnected && strictUrlVerified));
+    const isDemoEnv = activeAccount?.type === 'demo' || (!activeAccount && typeof window !== 'undefined' && window.location.href.includes('demo'));
+    
+    setIsAuthenticatedSocketOpen(!!(isConnected && tokenPresent));
   }, [wsUrl, isConnected, activeAccount?.type]);
 
   const value: DerivWSContextValue = {
