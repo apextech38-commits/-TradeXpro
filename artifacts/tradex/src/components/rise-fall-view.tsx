@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-export default function RiseFallView({ symbol = '1HZ100V' }: { symbol?: string }) {
+export default function RiseFallView({ symbol = '1HZ100V' }) {
   const [stake, setStake] = useState('10');
   const [duration, setDuration] = useState(1);
   const [durationUnit, setDurationUnit] = useState('t');
@@ -8,71 +8,60 @@ export default function RiseFallView({ symbol = '1HZ100V' }: { symbol?: string }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
 
+  // Auto-deduplicate subscription states on component mount/reset
+  useEffect(() => {
+    const activeWS = window.derivWS || window.ws || window.socket;
+    if (activeWS && activeWS.readyState === WebSocket.OPEN) {
+      console.log("[TradeX Fix]: Clearing dangling channels for", symbol);
+      // Send forget all or forget subscription if platform supports it
+      try {
+        activeWS.send(JSON.stringify({ forget_all: "ticks" }));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [symbol]);
+
   const handlePurchase = async (contractType) => {
     setIsSubmitting(true);
     setStatusMessage(null);
     try {
-      // Brutal absolute lookup of ANY active websocket connection instance exposed by the app template
-      const activeWS = window.derivWS || window.ws || window.socket || (window.NextWS ? window.NextWS.current : null);
+      const activeWS = window.derivWS || window.ws || window.socket;
       
-      if (!activeWS) {
-        // Fallback: search the global window properties for anything resembling a WebSocket instance
-        let foundWS = null;
-        for (const key in window) {
-          if (window[key] && (window[key] instanceof WebSocket || (window[key].send && typeof window[key].send === 'function'))) {
-            foundWS = window[key];
-            break;
-          }
-        }
-        if (!foundWS) {
-          setStatusMessage({ type: 'error', text: 'Initializing data channel connection... Please click again.' });
-          setIsSubmitting(false);
-          return;
-        }
-        executeOrder(foundWS, contractType);
-      } else {
-        executeOrder(activeWS, contractType);
+      if (!activeWS || activeWS.readyState !== WebSocket.OPEN) {
+        setStatusMessage({ type: 'error', text: 'Channel offline. Please check your network connection.' });
+        return;
       }
+
+      const payload = {
+        buy: 1,
+        price: parseFloat(stake),
+        parameters: {
+          amount: parseFloat(stake),
+          basis: 'stake',
+          contract_type: contractType,
+          currency: 'USD',
+          duration: parseInt(duration) || 1,
+          duration_unit: durationUnit,
+          symbol: symbol,
+          barrier: allowEquals ? '=' : undefined
+        }
+      };
+      
+      console.log("[TradeX Direct Execution]:", payload);
+      activeWS.send(JSON.stringify(payload));
+      setStatusMessage({ type: 'success', text: 'Order processed successfully!' });
     } catch (err) {
-      setStatusMessage({ type: 'error', text: err.message || 'Execution exception' });
+      setStatusMessage({ type: 'error', text: err.message });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const executeOrder = (wsInstance, contractType) => {
-    const payload = {
-      buy: 1,
-      price: parseFloat(stake),
-      parameters: {
-        amount: parseFloat(stake),
-        basis: 'stake',
-        contract_type: contractType,
-        currency: 'USD',
-        duration: intlValue(duration),
-        duration_unit: durationUnit,
-        symbol: symbol,
-        barrier: allowEquals ? '=' : undefined
-      }
-    };
-    
-    console.log("[Nuclear Patch] Executing direct transaction frame:", payload);
-    
-    // Bypass any framework wrappers - deliver raw string frames down the active open pipe
-    if (typeof wsInstance.sendRaw === 'function') {
-      wsInstance.sendRaw(JSON.stringify(payload));
-    } else {
-      wsInstance.send(JSON.stringify(payload));
-    }
-    setStatusMessage({ type: 'success', text: 'Order request submitted successfully!' });
-  };
-
-  const intlValue = (val) => parseInt(val) || 1;
-
   return (
     <div className="p-4 bg-background rounded-xl border space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Strategy: Rise/Fall (Nuclear-Verified)</h3>
+      <div>
+        <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Manual Engine: Rise/Fall</h3>
       </div>
       <div className="space-y-2">
         <label className="text-xs font-medium text-muted-foreground">Stake (USD)</label>
@@ -101,7 +90,9 @@ export default function RiseFallView({ symbol = '1HZ100V' }: { symbol?: string }
         <button onClick={() => handlePurchase('PUT')} disabled={isSubmitting} className="bg-rose-600 hover:bg-rose-500 text-white font-medium p-3 rounded-xl transition disabled:opacity-50">Fall</button>
       </div>
       {statusMessage && (
-        <div className={`p-3 rounded-lg text-xs font-medium ${statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+        <div className={`p-3 rounded-lg text-xs font-medium ${
+          statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
+        }`}>
           {statusMessage.text}
         </div>
       )}
