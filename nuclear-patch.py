@@ -1,8 +1,13 @@
 import os
+import time
 
-CODE_PAYLOAD = """import React, { useState } from 'react';
+# Create a unique timestamp seed to smash Cloudflare's build cache
+CACHE_BUST_SEED = str(int(time.time()))
 
-export default function RiseFallView({ symbol = '1HZ100V' }: { symbol?: string }) {
+CODE_PAYLOAD = f"""import React, { { useState, useEffect } } from 'react';
+
+// CACHE BUST ENFORCER SEED: {CACHE_BUST_SEED}
+export default function RiseFallView({ { symbol = '1HZ100V' } }) { {
   const [stake, setStake] = useState('10');
   const [duration, setDuration] = useState(1);
   const [durationUnit, setDurationUnit] = useState('t');
@@ -14,67 +19,49 @@ export default function RiseFallView({ symbol = '1HZ100V' }: { symbol?: string }
     setIsSubmitting(true);
     setStatusMessage(null);
     try {
-      // Brutal absolute lookup of ANY active websocket connection instance exposed by the app template
-      const activeWS = window.derivWS || window.ws || window.socket || (window.NextWS ? window.NextWS.current : null);
+      // Direct variable probing - intercepting layout scopes
+      const activeWS = window.derivWS || window.ws || window.socket;
       
       if (!activeWS) {
-        // Fallback: search the global window properties for anything resembling a WebSocket instance
-        let foundWS = null;
-        for (const key in window) {
-          if (window[key] && (window[key] instanceof WebSocket || (window[key].send && typeof window[key].send === 'function'))) {
-            foundWS = window[key];
-            break;
-          }
-        }
-        if (!foundWS) {
-          setStatusMessage({ type: 'error', text: 'Initializing data channel connection... Please click again.' });
-          setIsSubmitting(false);
-          return;
-        }
-        executeOrder(foundWS, contractType);
-      } else {
-        executeOrder(activeWS, contractType);
+        setStatusMessage({ { type: 'error', text: 'Connecting channel... Click again.' } });
+        return;
       }
+
+      const payload = {
+        buy: 1,
+        price: parseFloat(stake),
+        parameters: {
+          amount: parseFloat(stake),
+          basis: 'stake',
+          contract_type: contractType,
+          currency: 'USD',
+          duration: parseInt(duration) || 1,
+          duration_unit: durationUnit,
+          symbol: symbol,
+          barrier: allowEquals ? '=' : undefined
+        }
+      };
+      
+      console.log("[Nuclear Core] Dispatched:", payload);
+      
+      if (typeof activeWS.send === 'function') {
+        activeWS.send(JSON.stringify(payload));
+      } else if (typeof activeWS.sendRaw === 'function') {
+        activeWS.sendRaw(JSON.stringify(payload));
+      }
+      
+      setStatusMessage({ { type: 'success', text: 'Transaction processed!' } });
     } catch (err) {
-      setStatusMessage({ type: 'error', text: err.message || 'Execution exception' });
+      setStatusMessage({ { type: 'error', text: err.message } });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const executeOrder = (wsInstance, contractType) => {
-    const payload = {
-      buy: 1,
-      price: parseFloat(stake),
-      parameters: {
-        amount: parseFloat(stake),
-        basis: 'stake',
-        contract_type: contractType,
-        currency: 'USD',
-        duration: intlValue(duration),
-        duration_unit: durationUnit,
-        symbol: symbol,
-        barrier: allowEquals ? '=' : undefined
-      }
-    };
-    
-    console.log("[Nuclear Patch] Executing direct transaction frame:", payload);
-    
-    // Bypass any framework wrappers - deliver raw string frames down the active open pipe
-    if (typeof wsInstance.sendRaw === 'function') {
-      wsInstance.sendRaw(JSON.stringify(payload));
-    } else {
-      wsInstance.send(JSON.stringify(payload));
-    }
-    setStatusMessage({ type: 'success', text: 'Order request submitted successfully!' });
-  };
-
-  const intlValue = (val) => parseInt(val) || 1;
-
   return (
     <div className="p-4 bg-background rounded-xl border space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Strategy: Rise/Fall (Nuclear-Verified)</h3>
+        <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Strategy: Rise/Fall (Nuclear V2)</h3>
       </div>
       <div className="space-y-2">
         <label className="text-xs font-medium text-muted-foreground">Stake (USD)</label>
@@ -102,25 +89,27 @@ export default function RiseFallView({ symbol = '1HZ100V' }: { symbol?: string }
         <button onClick={() => handlePurchase('CALL')} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium p-3 rounded-xl transition disabled:opacity-50">Rise</button>
         <button onClick={() => handlePurchase('PUT')} disabled={isSubmitting} className="bg-rose-600 hover:bg-rose-500 text-white font-medium p-3 rounded-xl transition disabled:opacity-50">Fall</button>
       </div>
-      {statusMessage && (
-        <div className={`p-3 rounded-lg text-xs font-medium ${statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-          {statusMessage.text}
+      { {statusMessage && (
+        <div className={`p-3 rounded-lg text-xs font-medium ${ {
+          statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
+        } }`}>
+          { {statusMessage.text} }
         </div>
-      )}
+      )} }
     </div>
   );
-}
+} }
 """
 
-print("⚠️ Beginning absolute repository scan...")
+print("⚠️ Re-scanning workspace directories with Cache-Bust signature...")
 for root, dirs, files in os.walk("/workspaces/-TradeXpro"):
-    if "node_modules" in root or ".git" in root or ".next" in root or "dist" in root:
+    if any(p in root for p in ["node_modules", ".git", ".next", "dist"]):
         continue
     for file in files:
         if file == "rise-fall-view.tsx":
             target_path = os.path.join(root, file)
-            print(f"🔥 Overwriting rogue component duplicate found at: {target_path}")
+            print(f"🔥 Overwriting module target: {target_path}")
             with open(target_path, "w") as f:
                 f.write(CODE_PAYLOAD)
 
-print("✅ Repository clean. Target modules completely overwritten.")
+print("✅ Complete.")
