@@ -142,8 +142,16 @@ export function RiseFallView({
   appName,
 }: RiseFallViewProps) {
   const isMobile = useIsMobile();
-  const { isAuthenticatedSocketOpen } = useDerivWSContext();
+  
+  // 1) Pull WebSocket management functions and raw URL/OTP state from Context Provider
+  const { isAuthenticatedSocketOpen: checkGuard, wsUrl, lastOtp } = useDerivWSContext();
+  
   const contractMarkers = useContractMarkers(openPositions, activeSymbol?.underlying_symbol, isMobile);
+
+  // 2) Run Amy's strict guard evaluation to check if our specific socket session is open
+  const isSocketAuthorized = typeof checkGuard === 'function' 
+    ? checkGuard(ws, wsUrl, activeAccount?.type, activeAccount?.id, lastOtp)
+    : isConnected;
 
   if (error) {
     return (
@@ -179,10 +187,6 @@ export function RiseFallView({
 
       {/*
        * Content area.
-       * Mobile (< lg): flex-col, no outer scroll — the chart is pinned at 40 dvh
-       *   (edge-to-edge, no horizontal padding) and the controls panel below it
-       *   scrolls independently only when content exceeds the remaining space.
-       * Desktop (≥ lg): reverts to natural block flow so the page can grow.
        */}
       <div className="flex w-full max-w-7xl mx-auto flex-col max-lg:px-0 max-lg:py-0 px-3 py-2 sm:px-4 sm:py-4 gap-2 sm:gap-3 max-lg:flex-1 max-lg:min-h-0 max-lg:overflow-hidden lg:flex-none lg:overflow-visible">
         <div className="max-lg:flex max-lg:flex-col max-lg:flex-1 max-lg:min-h-0 lg:grid lg:grid-cols-[1fr_400px] lg:gap-4">
@@ -222,7 +226,8 @@ export function RiseFallView({
                     onDirectionChange={setDirection}
                     allowEquals={allowEquals}
                     onAllowEqualsChange={setAllowEquals}
-                    isConnected={isConnected}
+                    // Pass strict authorized stream evaluation down to bind trading readiness
+                    isConnected={isSocketAuthorized}
                     stake={stake}
                     onStakeChange={setStake}
                     duration={duration}
@@ -243,7 +248,7 @@ export function RiseFallView({
                     buyError={buyError}
                     onClearBuyResult={clearBuyResult}
                     isAuthenticated={authState === 'authenticated'}
-                    isAuthenticatedSocketOpen={isAuthenticatedSocketOpen}
+                    isAuthenticatedSocketOpen={isSocketAuthorized}
                   />
                 </CardContent>
               </Card>

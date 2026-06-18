@@ -9,16 +9,11 @@ interface PendingRequest {
   reject: (error: Error) => void;
 }
 
-/**
- * Lightweight WebSocket manager for the Deriv public WS API.
- * Handles connection, reconnection, request/response matching via req_id,
- * and subscription streaming.
- */
 export class DerivWS {
   private ws: WebSocket | null = null;
   private reqIdCounter = 0;
   private pendingRequests = new Map<number, PendingRequest>();
-  private subscriptionHandlers = new Map<string, MessageHandler>();
+  public subscriptionHandlers = new Map<string, MessageHandler>();
   private globalHandlers: MessageHandler[] = [];
   private connectionStateHandlers: ConnectionStateHandler[] = [];
   private reconnectExhaustedHandlers: ReconnectExhaustedHandler[] = [];
@@ -26,18 +21,25 @@ export class DerivWS {
   private maxReconnectAttempts = 5;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private pingInterval: ReturnType<typeof setInterval> | null = null;
-  private url: string;
+  public url: string;
   private isConnecting = false;
+
+  // 3) Queueing up trading commands cleanly
+  private tradeQueue: string[] = [];
+  public wsReadyPromise: Promise<void> = Promise.resolve();
+  private wsReadyResolve: () => void = () => {};
 
   constructor(url?: string) {
     this.url = url ?? getPublicWsUrl();
+    this.resetReadyPromise();
   }
 
-  /**
-   * Register a listener for connection state changes.
-   * Called with `true` on connect and `false` on disconnect.
-   * Returns an unsubscribe function.
-   */
+  private resetReadyPromise() {
+    this.wsReadyPromise = new Promise((resolve) => {
+      this.wsReadyResolve = resolve;
+    });
+  }
+
   onConnectionStateChange(handler: ConnectionStateHandler): () => void {
     this.connectionStateHandlers.push(handler);
     return () => {
@@ -58,12 +60,44 @@ export class DerivWS {
     }
   }
 
-  /**
-   * Update the URL used for future reconnections without disrupting the current connection.
-   * Call this when an OTP URL is refreshed but the live socket is still healthy.
-   */
   updateUrl(url: string): void {
+    console.log("[DIAGNOSTIC URL]: Passed directly into custom connection instance:", url);
     this.url = url;
+  }
+
+  // 5) Controlled atomic switch hook
+  async swapSocketAuthenticated(newUrl: string): Promise<void> {
+    console.log(`[SWAP LOG] ${new Date().toISOString()} Initializing clean socket switch.`);
+    
+    // Step 1 & 2: Flush outstanding maps & clean subscriptions on old context
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      console.log(`[SWAP LOG] ${new Date().toISOString()} Sending forget sequences to old frame channels.`);
+      try {
+        const ids = Array.from(this.subscriptionHandlers.keys());
+        if (ids.length) {
+          ids.forEach(id => this.ws?.send(JSON.stringify({ forget: id, req_id: ++this.reqIdCounter })));
+        } else {
+          this.ws.send(JSON.stringify({ forget_all: ['ticks', 'proposal'], req_id: ++this.reqIdCounter }));
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    // Step 3: Wait a short tick to flush pipeline queues
+    await new Promise(r => setTimeout(r, 150));
+    this.subscriptionHandlers.clear();
+
+    // Step 4: Disconnect old client safely
+    this.stopPing();
+    if (this.ws) {
+      console.log(`[SWAP LOG] ${new Date().toISOString()} Terminating old active socket.`);
+      try { this.ws.close(); } catch (_) {}
+      this.ws = null;
+    }
+
+    // Step 5: Reset tracking variables and establish fresh connection
+    this.updateUrl(newUrl);
+    this.resetReadyPromise();
+    await this.connect();
   }
 
   connect(): Promise<void> {
@@ -71,14 +105,7 @@ export class DerivWS {
       return Promise.resolve();
     }
     if (this.isConnecting) {
-      return new Promise((resolve) => {
-        const check = setInterval(() => {
-          if (this.ws?.readyState === WebSocket.OPEN) {
-            clearInterval(check);
-            resolve();
-          }
-        }, 100);
-      });
+      return this.wsReadyPromise;
     }
 
     this.isConnecting = true;
@@ -87,11 +114,19 @@ export class DerivWS {
       this.ws = new WebSocket(this.url);
 
       this.ws.onopen = () => {
+        console.log(`[SWAP LOG] ${new Date().toISOString()} New authorized target context flipped to OPEN`);
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.startPing();
         this.notifyConnectionState(true);
+        this.wsReadyResolve();
         resolve();
+
+        // Flush out any queued payload messages securely
+        while (this.tradeQueue.length) {
+          const msg = this.tradeQueue.shift();
+          if (msg) this.ws?.send(msg);
+        }
       };
 
       this.ws.onmessage = (event) => {
@@ -107,19 +142,24 @@ export class DerivWS {
       this.ws.onclose = () => {
         this.isConnecting = false;
         this.stopPing();
-        this.subscriptionHandlers.clear();
         this.notifyConnectionState(false);
         this.attemptReconnect();
       };
     });
   }
 
-  /**
-   * Send a one-shot request and wait for the response matched by req_id.
-   */
-  send<T = Record<string, unknown>>(payload: Record<string, unknown>): Promise<T> {
+  async send<T = Record<string, unknown>>(payload: Record<string, unknown>): Promise<T> {
+    const isTradingAction = !!(payload.buy || payload.proposal);
+    if (isTradingAction) {
+      await this.wsReadyPromise;
+    }
+
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        if (isTradingAction) {
+          this.tradeQueue.push(JSON.stringify({ ...payload, req_id: ++this.reqIdCounter }));
+          return;
+        }
         reject(new Error('WebSocket is not connected'));
         return;
       }
@@ -136,14 +176,12 @@ export class DerivWS {
     });
   }
 
-  /**
-   * Send a subscription request. The handler is called for every streamed message.
-   * Returns a function to unsubscribe.
-   */
-  subscribe(
+  async subscribe(
     payload: Record<string, unknown>,
     handler: MessageHandler
   ): Promise<{ subscriptionId: string | null; unsubscribe: () => void }> {
+    await this.wsReadyPromise;
+
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         reject(new Error('WebSocket is not connected'));
@@ -159,7 +197,6 @@ export class DerivWS {
           if (subscriptionId) {
             this.subscriptionHandlers.set(subscriptionId, handler);
           }
-          // Also call handler with the initial response
           handler(data);
           resolve({
             subscriptionId,
@@ -191,7 +228,7 @@ export class DerivWS {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    this.reconnectAttempts = this.maxReconnectAttempts; // prevent reconnect
+    this.reconnectAttempts = this.maxReconnectAttempts;
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -205,14 +242,12 @@ export class DerivWS {
   }
 
   private handleMessage(data: Record<string, unknown>): void {
-    // Notify global handlers
     for (const handler of this.globalHandlers) {
       handler(data);
     }
 
     const reqId = data.req_id as number | undefined;
 
-    // Check for error
     if (data.error) {
       if (reqId && this.pendingRequests.has(reqId)) {
         const pending = this.pendingRequests.get(reqId)!;
@@ -222,13 +257,11 @@ export class DerivWS {
       return;
     }
 
-    // Check if this is a subscription stream
     const subId = this.extractSubscriptionId(data);
     if (subId && this.subscriptionHandlers.has(subId)) {
       this.subscriptionHandlers.get(subId)!(data);
     }
 
-    // Resolve pending one-shot request
     if (reqId && this.pendingRequests.has(reqId)) {
       const pending = this.pendingRequests.get(reqId)!;
       this.pendingRequests.delete(reqId);
@@ -237,7 +270,6 @@ export class DerivWS {
   }
 
   private extractSubscriptionId(data: Record<string, unknown>): string | null {
-    // Subscription ID can be in tick.id, subscription.id, or proposal.id
     if (data.subscription && typeof data.subscription === 'object') {
       return (data.subscription as Record<string, string>).id ?? null;
     }
