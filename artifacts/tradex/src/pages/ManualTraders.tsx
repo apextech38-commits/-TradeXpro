@@ -1,53 +1,39 @@
-import { useEffect, useRef } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import React, { useEffect, useRef } from 'react';
 
-const TOKEN_KEY = "tradex_access_token";
-const ACCOUNTS_KEY = "tradex-deriv-accounts";
-
-export default function ManualTraders() {
+const ManualTraders: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { isLoggedIn, activeAccount } = useAuth();
 
   useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-
-    const sendToken = () => {
-      const token = localStorage.getItem(TOKEN_KEY);
-      const accounts = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]');
-      if (!token || !accounts.length) return;
-
-      iframe.contentWindow?.postMessage({
-        type: 'DERIV_TOKEN',
-        access_token: token,
-        account_id: activeAccount?.account || accounts[0]?.account,
-        account_type: activeAccount?.account_type || accounts[0]?.account_type,
-      }, 'https://tradexpro.co.ke');
-    };
-
-    // Listen for iframe signalling it is ready
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== 'https://tradexpro.co.ke') return;
-      if (event.data?.type === 'TRADEX_READY') sendToken();
+      // 1. Security: Only accept messages from your dtrader domain
+      if (event.origin !== 'https://dtrader.tradexpro.co.ke') return;
+
+      // 2. Respond to the 'TRADEX_READY' signal from the iframe
+      if (event.data.type === 'TRADEX_READY') {
+        iframeRef.current?.contentWindow?.postMessage({
+          type: 'TRADEX_AUTH',
+          payload: {
+            // Replace these with your actual Auth hook/method
+            token1: localStorage.getItem('your_main_app_token1'),
+            token2: localStorage.getItem('your_main_app_token2'),
+          }
+        }, 'https://dtrader.tradexpro.co.ke');
+      }
     };
 
     window.addEventListener('message', handleMessage);
-
-    // Also send on load in case TRADEX_READY already fired
-    iframe.addEventListener('load', sendToken);
-
-    return () => {
-      window.removeEventListener('message', handleMessage);
-      iframe.removeEventListener('load', sendToken);
-    };
-  }, [isLoggedIn, activeAccount]);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   return (
     <iframe
       ref={iframeRef}
-      src="/manualtraders/"
+      src="https://dtrader.tradexpro.co.ke"
+      style={{ width: '100%', height: '85vh', border: 'none' }}
       title="Manual Traders"
-      style={{ width: "100%", height: "calc(100vh - 56px)", border: "none" }}
+      sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
     />
   );
-}
+};
+
+export default ManualTraders;
