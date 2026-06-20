@@ -127,22 +127,17 @@ export default function ManualTraders() {
     if (!iframe) return;
 
     const sendAuth = () => {
-      // Send the OAuth Bearer token — what dtrader needs to call fetchAccounts()
-      let authInfo: { access_token?: string } | null = null;
-      try {
-        authInfo = JSON.parse(sessionStorage.getItem('auth_info') || 'null');
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('[ManualTraders] Failed to parse auth_info from sessionStorage', err);
-        return;
-      }
-
-      const token = authInfo?.access_token;
+      // Send the bearer token TradeXpro's own AuthContext stores after login.
+      // NOTE: AuthContext.tsx writes this under localStorage['tradex_access_token']
+      // (see TOKEN_KEY in AuthContext.tsx) — NOT sessionStorage['auth_info'],
+      // which was the original assumption but doesn't actually get written
+      // anywhere in the current auth flow.
+      const token = localStorage.getItem('tradex_access_token');
       const loginid = localStorage.getItem(LOGINID_KEY);
 
       if (!token) {
         // eslint-disable-next-line no-console
-        console.warn('[ManualTraders] No access_token found in sessionStorage["auth_info"]; skipping auth postMessage');
+        console.warn('[ManualTraders] No access_token found in localStorage["tradex_access_token"]; skipping auth postMessage');
         return;
       }
 
