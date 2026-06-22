@@ -1,3 +1,0 @@
-module.exports=[73135,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(8024);a.n(d("[project]/manual-traders-src/node_modules/next/dist/client/components/builtin/global-error.js <module evaluation>"))},13428,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(8024);a.n(d("[project]/manual-traders-src/node_modules/next/dist/client/components/builtin/global-error.js"))},93183,a=>{"use strict";a.i(73135);var b=a.i(13428);a.n(b)},23589,a=>{a.n(a.i(93183))}];
-
-//# sourceMappingURL=0sw8_next_dist_client_components_builtin_global-error_04lpfrk.js.map
