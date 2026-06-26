@@ -1,41 +1,44 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 
-const DTRADER_URL = 'https://dtrader.tradexpro.co.ke';
-const TOKEN_KEY = 'tradex_access_token';
-const ACCOUNTS_KEY = 'tradex-deriv-accounts';
+const DTRADER_URL   = 'https://dtrader.tradexpro.co.ke';
+
+// ── Token keys: must match exactly what token-exchange.js writes ──────────
+// token-exchange.js  →  sessionStorage.setItem('access_token', ...)
+const TOKEN_KEY     = 'access_token';
+const EXPIRES_KEY   = 'token_expires_at';
 
 export default function ManualTraders() {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeRef                            = useRef<HTMLIFrameElement>(null);
   const { isLoggedIn, activeAccount, accounts } = useAuth();
 
+  // ── Build and send the auth payload to the iframe ────────────────────
   const sendAuth = useCallback(() => {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) return;
 
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token      = sessionStorage.getItem(TOKEN_KEY);
+    const expiresAt  = sessionStorage.getItem(EXPIRES_KEY);
+
+    // Nothing to send — user is not authenticated
     if (!token) return;
 
-    let parsedAccounts: unknown[] = [];
-    try {
-      parsedAccounts = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]');
-    } catch {
-      parsedAccounts = [];
-    }
-
-    const loginid = activeAccount?.account ?? parsedAccounts[0]?.account ?? '';
+    // Derive loginid from AuthContext (already resolved by main site auth)
+    const loginid = activeAccount?.account ?? accounts?.[0]?.account ?? '';
 
     iframe.contentWindow.postMessage(
       {
-        type: 'TRADEXPRO_AUTH',
+        type:      'TRADEXPRO_AUTH',   // must match dtrader receiver
         token,
+        expiresAt,
         loginid,
-        accounts: parsedAccounts,
+        accounts:  accounts ?? [],
       },
-      DTRADER_URL
+      DTRADER_URL,                     // never '*'
     );
-  }, [activeAccount]);
+  }, [activeAccount, accounts]);
 
+  // ── Wire up message listener + load fallback ─────────────────────────
   useEffect(() => {
     if (!isLoggedIn) return;
 
@@ -43,12 +46,15 @@ export default function ManualTraders() {
     if (!iframe) return;
 
     const handleMessage = (event: MessageEvent) => {
+      // Reject anything not from dtrader
       if (event.origin !== DTRADER_URL) return;
+
       if (event.data?.type === 'DTRADER_AUTH_READY') {
         sendAuth();
       }
     };
 
+    // Fallback: send on iframe load in case READY signal was missed
     const handleLoad = () => sendAuth();
 
     window.addEventListener('message', handleMessage);
@@ -60,17 +66,18 @@ export default function ManualTraders() {
     };
   }, [isLoggedIn, sendAuth]);
 
+  // ── Not logged in — gate UI ───────────────────────────────────────────
   if (!isLoggedIn) {
     return (
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
+        display:        'flex',
+        alignItems:     'center',
         justifyContent: 'center',
-        height: 'calc(100vh - 80px)',
-        flexDirection: 'column',
-        gap: '12px',
-        color: '#94a3b8',
-        background: '#0B0F14',
+        height:         'calc(100vh - 80px)',
+        flexDirection:  'column',
+        gap:            '12px',
+        color:          '#94a3b8',
+        background:     '#0B0F14',
       }}>
         <span style={{ fontSize: '2rem' }}>🔒</span>
         <p style={{ margin: 0, fontSize: '1rem' }}>
@@ -80,6 +87,7 @@ export default function ManualTraders() {
     );
   }
 
+  // ── Authenticated — render iframe ─────────────────────────────────────
   return (
     <div style={{ width: '100%', height: 'calc(100vh - 80px)', overflow: 'hidden' }}>
       <iframe
