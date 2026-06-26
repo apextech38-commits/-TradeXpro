@@ -1,4 +1,6 @@
-# Exclude files (like .js, .css, .png) from the rewrite rule
-/assets/* /assets/:splat 200
-/index.html /index.html 200
-/* /index.html 200
+# Static assets — serve directly, never rewrite to index.html
+/assets/*   /assets/:splat  200
+
+# SPA fallback — all other paths serve index.html
+# (hash routing handles the rest client-side)
+/*          /index.html     200
