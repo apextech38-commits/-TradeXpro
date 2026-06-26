@@ -1,3 +1,4 @@
 name = "tradexpro"
 pages_build_output_dir = "artifacts/tradex/dist/public"
 compatibility_date = "2024-01-01"
+# cache bust 20260626T183920Z
