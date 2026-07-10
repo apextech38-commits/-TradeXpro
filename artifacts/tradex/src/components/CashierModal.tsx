@@ -1,48 +1,45 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 
 // ---------------------------------------------------------------------------
-// TradeX Pro — Custom Cashier Modal
+// TradeX Pro — Cashier Modal
 // ---------------------------------------------------------------------------
-// Replaces the generic Deposit/Withdraw cashier with one that calls Deriv's
-// `cashier` API directly using your registered app_id, then hands the user
-// off to the returned cashier URL.
+// Calls Deriv's `cashier` API directly (using your registered app_id) to get
+// a live, session-scoped deposit/withdraw URL, then opens it in a new tab.
 //
-// IMPORTANT — Deriv platform constraints (not a choice, a hard requirement):
-//   1. Deriv's cashier pages send X-Frame-Options: DENY, so the returned URL
-//      CANNOT be embedded in an iframe. This modal opens it in a new tab.
-//   2. Cashier (deposit/withdraw) is only available on REAL money accounts.
-//      Demo/virtual accounts will get an error back from the API — this is
-//      handled below with a clear message rather than a silent failure.
-//   3. The call must be made on an AUTHORIZED connection (token already
-//      exchanged via your PKCE flow, read from localStorage as in the rest
-//      of the app).
+// Platform constraints (not stylistic choices — hard requirements):
+//   1. Deriv's cashier pages send X-Frame-Options: DENY, so they cannot be
+//      embedded in an iframe. This opens a new tab, same as the previous
+//      static-link version did.
+//   2. Cashier only works on REAL money accounts. Demo accounts get a clear
+//      inline message instead of a failed API call.
+//   3. Requires an authorized WS connection — token read from the same
+//      localStorage key AuthContext already writes to.
 // ---------------------------------------------------------------------------
 
-const APP_ID = '33ughhvgtxloGWBQQZEeD';
+const APP_ID = "33ughhvgtxloGWBQQZEeD";
 const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public?app_id=${APP_ID}`;
-const TOKEN_KEY = 'tradex_access_token';
+const TOKEN_KEY = "tradex_access_token";
 
-type CashierAction = 'deposit' | 'withdraw';
-type Status = 'idle' | 'connecting' | 'requesting' | 'success' | 'error';
+type CashierAction = "deposit" | "withdraw";
+type Status = "idle" | "connecting" | "requesting" | "success" | "error";
 
 interface CashierModalProps {
   open: boolean;
   onClose: () => void;
-  isDemo?: boolean; // pass the account type you already track in AuthContext
+  isDemo?: boolean;
 }
 
 export default function CashierModal({ open, onClose, isDemo = false }: CashierModalProps) {
-  const [status, setStatus] = useState<Status>('idle');
+  const [status, setStatus] = useState<Status>("idle");
   const [action, setAction] = useState<CashierAction | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     if (!open) {
-      // reset on close
-      setStatus('idle');
+      setStatus("idle");
       setAction(null);
-      setErrorMsg('');
+      setErrorMsg("");
       wsRef.current?.close();
       wsRef.current = null;
     }
@@ -52,22 +49,20 @@ export default function CashierModal({ open, onClose, isDemo = false }: CashierM
     const token = localStorage.getItem(TOKEN_KEY);
 
     if (!token) {
-      setStatus('error');
-      setErrorMsg('No active session found. Please log in again.');
+      setStatus("error");
+      setErrorMsg("No active session found. Please log in again.");
       return;
     }
 
     if (isDemo) {
-      setStatus('error');
-      setErrorMsg(
-        'Cashier is only available on a real-money account. Switch out of Demo mode to deposit or withdraw.'
-      );
+      setStatus("error");
+      setErrorMsg("Cashier is only available on a real-money account. Switch out of Demo to continue.");
       return;
     }
 
     setAction(type);
-    setStatus('connecting');
-    setErrorMsg('');
+    setStatus("connecting");
+    setErrorMsg("");
 
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
@@ -79,41 +74,39 @@ export default function CashierModal({ open, onClose, isDemo = false }: CashierM
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
-      if (data.msg_type === 'authorize') {
+      if (data.msg_type === "authorize") {
         if (data.error) {
-          setStatus('error');
-          setErrorMsg(data.error.message || 'Authorization failed.');
+          setStatus("error");
+          setErrorMsg(data.error.message || "Authorization failed.");
           ws.close();
           return;
         }
-        setStatus('requesting');
+        setStatus("requesting");
         ws.send(
           JSON.stringify({
-            cashier: type, // "deposit" | "withdraw"
-            provider: 'doughflow',
-            type: 'url',
+            cashier: type,
+            provider: "doughflow",
+            type: "url",
           })
         );
       }
 
-      if (data.msg_type === 'cashier') {
+      if (data.msg_type === "cashier") {
         if (data.error) {
-          setStatus('error');
+          setStatus("error");
           setErrorMsg(data.error.message || `Unable to open ${type} page.`);
           ws.close();
           return;
         }
-        setStatus('success');
-        const cashierUrl = data.cashier as string;
-        // Deriv blocks iframe embedding of cashier pages — open a new tab.
-        window.open(cashierUrl, '_blank', 'noopener,noreferrer');
+        setStatus("success");
+        window.open(data.cashier as string, "_blank", "noopener,noreferrer");
         ws.close();
       }
     };
 
     ws.onerror = () => {
-      setStatus('error');
-      setErrorMsg('Connection to Deriv failed. Check your network and try again.');
+      setStatus("error");
+      setErrorMsg("Connection to Deriv failed. Check your network and try again.");
     };
 
     ws.onclose = () => {
@@ -123,158 +116,61 @@ export default function CashierModal({ open, onClose, isDemo = false }: CashierM
 
   if (!open) return null;
 
+  const busy = status === "connecting" || status === "requesting";
+
   return (
-    <div className="cashier-overlay" role="dialog" aria-modal="true" aria-labelledby="cashier-title">
-      <div className="cashier-modal">
-        <div className="cashier-header">
-          <h2 id="cashier-title">Cashier</h2>
-          <button className="cashier-close" onClick={onClose} aria-label="Close cashier">
-            ×
-          </button>
+    <div className="fixed inset-0 z-50 flex items-end">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative w-full bg-background rounded-t-3xl shadow-2xl flex flex-col" style={{ height: "auto" }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h2 className="text-base font-bold text-foreground">Cashier</h2>
+          <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground">✕</button>
         </div>
 
-        {status === 'error' && (
-          <div className="cashier-banner cashier-banner-error">{errorMsg}</div>
-        )}
+        <div className="flex flex-col gap-3 p-5">
+          {status === "error" && (
+            <div className="px-4 py-3 text-xs rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444]">
+              {errorMsg}
+            </div>
+          )}
 
-        {(status === 'connecting' || status === 'requesting') && (
-          <div className="cashier-banner cashier-banner-info">
-            {status === 'connecting' ? 'Connecting to Deriv…' : `Preparing your ${action} link…`}
-          </div>
-        )}
+          {busy && (
+            <div className="px-4 py-3 text-xs rounded-lg bg-[#1E90FF]/10 border border-[#1E90FF]/30 text-[#1E90FF]">
+              {status === "connecting" ? "Connecting to Deriv…" : `Preparing your ${action} link…`}
+            </div>
+          )}
 
-        {status === 'success' && (
-          <div className="cashier-banner cashier-banner-success">
-            Opened your {action} page in a new tab. Didn't see it? Check your popup blocker.
-          </div>
-        )}
+          {status === "success" && (
+            <div className="px-4 py-3 text-xs rounded-lg bg-[#22C55E]/10 border border-[#22C55E]/30 text-[#22C55E]">
+              Opened your {action} page in a new tab. Didn't see it? Check your popup blocker.
+            </div>
+          )}
 
-        <div className="cashier-actions">
           <button
-            className="cashier-action cashier-action-deposit"
-            onClick={() => requestCashierUrl('deposit')}
-            disabled={status === 'connecting' || status === 'requesting'}
+            onClick={() => requestCashierUrl("deposit")}
+            disabled={busy}
+            className="w-full flex items-center gap-3 px-4 py-4 bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-xl hover:bg-[#22C55E]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span className="cashier-action-icon">💰</span>
-            <span className="cashier-action-text">
-              <span className="cashier-action-title">Deposit</span>
-              <span className="cashier-action-sub">Add funds to your account</span>
-            </span>
+            <span className="text-2xl">💰</span>
+            <div className="text-left">
+              <div className="font-semibold text-foreground">Deposit</div>
+              <div className="text-xs text-muted-foreground">Add funds to your account</div>
+            </div>
           </button>
 
           <button
-            className="cashier-action cashier-action-withdraw"
-            onClick={() => requestCashierUrl('withdraw')}
-            disabled={status === 'connecting' || status === 'requesting'}
+            onClick={() => requestCashierUrl("withdraw")}
+            disabled={busy}
+            className="w-full flex items-center gap-3 px-4 py-4 bg-[#1E90FF]/10 border border-[#1E90FF]/30 rounded-xl hover:bg-[#1E90FF]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span className="cashier-action-icon">🏦</span>
-            <span className="cashier-action-text">
-              <span className="cashier-action-title">Withdraw</span>
-              <span className="cashier-action-sub">Transfer funds to your bank</span>
-            </span>
+            <span className="text-2xl">🏦</span>
+            <div className="text-left">
+              <div className="font-semibold text-foreground">Withdraw</div>
+              <div className="text-xs text-muted-foreground">Transfer funds to your bank</div>
+            </div>
           </button>
         </div>
       </div>
-
-      <style>{`
-        .cashier-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(4, 8, 20, 0.72);
-          display: flex;
-          align-items: flex-end;
-          justify-content: center;
-          z-index: 1000;
-        }
-        @media (min-width: 640px) {
-          .cashier-overlay { align-items: center; }
-        }
-        .cashier-modal {
-          width: 100%;
-          max-width: 560px;
-          background: #0f1729;
-          border: 1px solid #1f2c47;
-          border-radius: 16px 16px 0 0;
-          padding: 28px 24px 32px;
-          box-shadow: 0 -8px 40px rgba(0,0,0,0.5);
-        }
-        @media (min-width: 640px) {
-          .cashier-modal { border-radius: 16px; }
-        }
-        .cashier-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 20px;
-        }
-        .cashier-header h2 {
-          color: #e8ecf5;
-          font-size: 22px;
-          font-weight: 700;
-          margin: 0;
-        }
-        .cashier-close {
-          background: none;
-          border: none;
-          color: #8b96ab;
-          font-size: 26px;
-          line-height: 1;
-          cursor: pointer;
-          padding: 4px 8px;
-        }
-        .cashier-close:hover { color: #e8ecf5; }
-        .cashier-banner {
-          border-radius: 10px;
-          padding: 12px 14px;
-          font-size: 14px;
-          margin-bottom: 16px;
-        }
-        .cashier-banner-error {
-          background: rgba(220, 38, 38, 0.12);
-          border: 1px solid rgba(220, 38, 38, 0.4);
-          color: #fca5a5;
-        }
-        .cashier-banner-info {
-          background: rgba(37, 99, 235, 0.12);
-          border: 1px solid rgba(37, 99, 235, 0.4);
-          color: #93c5fd;
-        }
-        .cashier-banner-success {
-          background: rgba(22, 163, 74, 0.12);
-          border: 1px solid rgba(22, 163, 74, 0.4);
-          color: #86efac;
-        }
-        .cashier-actions {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .cashier-action {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          width: 100%;
-          text-align: left;
-          padding: 16px;
-          border-radius: 12px;
-          border: 1px solid #22304d;
-          background: #141d33;
-          cursor: pointer;
-          transition: transform 0.12s ease, border-color 0.12s ease;
-        }
-        .cashier-action:not(:disabled):hover {
-          border-color: #3b82f6;
-          transform: translateY(-1px);
-        }
-        .cashier-action:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        .cashier-action-icon { font-size: 26px; }
-        .cashier-action-text { display: flex; flex-direction: column; gap: 2px; }
-        .cashier-action-title { color: #e8ecf5; font-weight: 600; font-size: 16px; }
-        .cashier-action-sub { color: #8b96ab; font-size: 13px; }
-      `}</style>
     </div>
   );
 }
