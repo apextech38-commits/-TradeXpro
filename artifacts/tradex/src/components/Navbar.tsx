@@ -219,6 +219,7 @@ export default function Navbar() {
       <CashierModal
         open={showCashier}
         onClose={() => setShowCashier(false)}
+        account={activeAccount ? { account: activeAccount.account, token: activeAccount.token } : null}
         isDemo={isDemoAccount}
       />
     </>

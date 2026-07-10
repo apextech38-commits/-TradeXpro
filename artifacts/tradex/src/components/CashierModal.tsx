@@ -3,33 +3,42 @@ import { useEffect, useRef, useState } from "react";
 // ---------------------------------------------------------------------------
 // TradeX Pro — Cashier Modal
 // ---------------------------------------------------------------------------
-// Calls Deriv's `cashier` API directly (using your registered app_id) to get
-// a live, session-scoped deposit/withdraw URL, then opens it in a new tab.
+// Calls Deriv's `cashier` API directly to get a live, session-scoped
+// deposit/withdraw URL, then opens it in a new tab.
+//
+// Auth note: this endpoint does NOT accept a raw `{ authorize: token }` frame
+// on the public WS gateway (Options broker rejects it as an invalid input
+// shape). The proven pattern — already used by AuthContext.connect() — is:
+//   1. POST /accounts/{account}/otp  with the OAuth token  -> one-time otpUrl
+//   2. Open the WebSocket directly against that otpUrl (pre-authorized)
+//   3. No explicit `authorize` frame needed — the connection is already scoped
 //
 // Platform constraints (not stylistic choices — hard requirements):
 //   1. Deriv's cashier pages send X-Frame-Options: DENY, so they cannot be
-//      embedded in an iframe. This opens a new tab, same as the previous
-//      static-link version did.
+//      embedded in an iframe. This opens a new tab, same as before.
 //   2. Cashier only works on REAL money accounts. Demo accounts get a clear
 //      inline message instead of a failed API call.
-//   3. Requires an authorized WS connection — token read from the same
-//      localStorage key AuthContext already writes to.
 // ---------------------------------------------------------------------------
 
 const APP_ID = "33ughhvgtxloGWBQQZEeD";
-const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public?app_id=${APP_ID}`;
-const TOKEN_KEY = "tradex_access_token";
+const API_BASE = "https://api.derivws.com/trading/v1/options";
 
 type CashierAction = "deposit" | "withdraw";
 type Status = "idle" | "connecting" | "requesting" | "success" | "error";
 
+interface CashierAccount {
+  account: string;
+  token: string;
+}
+
 interface CashierModalProps {
   open: boolean;
   onClose: () => void;
+  account: CashierAccount | null;
   isDemo?: boolean;
 }
 
-export default function CashierModal({ open, onClose, isDemo = false }: CashierModalProps) {
+export default function CashierModal({ open, onClose, account, isDemo = false }: CashierModalProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [action, setAction] = useState<CashierAction | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
@@ -45,10 +54,8 @@ export default function CashierModal({ open, onClose, isDemo = false }: CashierM
     }
   }, [open]);
 
-  const requestCashierUrl = (type: CashierAction) => {
-    const token = localStorage.getItem(TOKEN_KEY);
-
-    if (!token) {
+  const requestCashierUrl = async (type: CashierAction) => {
+    if (!account?.token || !account?.account) {
       setStatus("error");
       setErrorMsg("No active session found. Please log in again.");
       return;
@@ -64,32 +71,42 @@ export default function CashierModal({ open, onClose, isDemo = false }: CashierM
     setStatus("connecting");
     setErrorMsg("");
 
-    const ws = new WebSocket(WS_URL);
+    // Step 1 — exchange the OAuth token for a one-time, pre-authorized WS URL
+    let otpUrl: string;
+    try {
+      const otpRes = await fetch(`${API_BASE}/accounts/${account.account}/otp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${account.token}`,
+          "Deriv-App-ID": APP_ID,
+        },
+      });
+      if (!otpRes.ok) throw new Error(`OTP failed (${otpRes.status})`);
+      const otpJson = await otpRes.json();
+      otpUrl = otpJson.data.url;
+    } catch {
+      setStatus("error");
+      setErrorMsg("Could not start a secure session. Please try again.");
+      return;
+    }
+
+    // Step 2 — connect directly to the pre-authorized URL, no `authorize` frame
+    setStatus("requesting");
+    const ws = new WebSocket(otpUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({ authorize: token }));
+      ws.send(
+        JSON.stringify({
+          cashier: type,
+          provider: "doughflow",
+          type: "url",
+        })
+      );
     };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-
-      if (data.msg_type === "authorize") {
-        if (data.error) {
-          setStatus("error");
-          setErrorMsg(data.error.message || "Authorization failed.");
-          ws.close();
-          return;
-        }
-        setStatus("requesting");
-        ws.send(
-          JSON.stringify({
-            cashier: type,
-            provider: "doughflow",
-            type: "url",
-          })
-        );
-      }
 
       if (data.msg_type === "cashier") {
         if (data.error) {
@@ -136,7 +153,7 @@ export default function CashierModal({ open, onClose, isDemo = false }: CashierM
 
           {busy && (
             <div className="px-4 py-3 text-xs rounded-lg bg-[#1E90FF]/10 border border-[#1E90FF]/30 text-[#1E90FF]">
-              {status === "connecting" ? "Connecting to Deriv…" : `Preparing your ${action} link…`}
+              {status === "connecting" ? "Starting a secure session…" : `Preparing your ${action} link…`}
             </div>
           )}
 
