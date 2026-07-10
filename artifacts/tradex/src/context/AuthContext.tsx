@@ -27,6 +27,34 @@ function generateRandom(length = 64): string {
   return Array.from(arr, (b) => chars[b % chars.length]).join("");
 }
 
+// api.derivws.com occasionally resets connections (ERR_CONNECTION_RESET).
+// The one-shot login fetches (token exchange, accounts list) had no retry,
+// so a single blip would silently cache an incomplete account list
+// (e.g. Demo only, missing Real) until the next full re-login.
+async function fetchWithRetry(
+  input: RequestInfo,
+  init: RequestInit,
+  attempts = 3,
+  delayMs = 1000
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(input, init);
+      if (res.ok) return res;
+      // Retry on 5xx (transient) but not on 4xx (won't fix itself)
+      if (res.status < 500) return res;
+      lastErr = new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      lastErr = err;
+    }
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function sha256Base64Url(plain: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(plain);
@@ -251,7 +279,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        const tokenRes = await fetch("/api/oauth-token", {
+        const tokenRes = await fetchWithRetry("/api/oauth-token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code, code_verifier: codeVerifier, redirect_uri: REDIRECT_URI }),
@@ -262,7 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         localStorage.setItem(TOKEN_KEY, access_token);
 
-        const acctRes = await fetch(`${API_BASE}/accounts`, {
+        const acctRes = await fetchWithRetry(`${API_BASE}/accounts`, {
           headers: {
             Authorization: `Bearer ${access_token}`,
             "Deriv-App-ID": OAUTH_APP_ID,
