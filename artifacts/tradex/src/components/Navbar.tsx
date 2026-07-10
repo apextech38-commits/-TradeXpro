@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "./ThemeProvider";
+import CashierModal from "./CashierModal";
 
 interface TabDef { label: string; Icon: React.ComponentType<{ className?: string }>; route: string; }
 
@@ -48,7 +49,8 @@ export default function Navbar() {
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [showCashier, setShowCashier] = useState(false);
-  const [cashierTab, setCashierTab] = useState<'deposit' | 'withdraw'>('deposit');
+
+  const isDemoAccount = activeAccount ? accountLabel(activeAccount) === "Demo" : false;
 
   const formattedBalance = balance !== null
     ? `${currency} ${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -214,40 +216,11 @@ export default function Navbar() {
       </div>
     </nav>
 
-      {/* Cashier Drawer */}
-      {showCashier && (
-        <div className="fixed inset-0 z-50 flex items-end">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCashier(false)} />
-          <div className="relative w-full bg-background rounded-t-3xl shadow-2xl flex flex-col" style={{ height: "auto" }}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-              <h2 className="text-base font-bold text-foreground">Cashier</h2>
-              <button onClick={() => setShowCashier(false)} className="p-1 text-muted-foreground hover:text-foreground">✕</button>
-            </div>
-            <div className="flex flex-col gap-3 p-5">
-              <button
-                onClick={() => { window.open('https://app.deriv.com/cashier/deposit', '_blank'); setShowCashier(false); }}
-                className="w-full flex items-center gap-3 px-4 py-4 bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-xl hover:bg-[#22C55E]/20 transition-colors"
-              >
-                <span className="text-2xl">💰</span>
-                <div className="text-left">
-                  <div className="font-semibold text-foreground">Deposit</div>
-                  <div className="text-xs text-muted-foreground">Add funds to your account</div>
-                </div>
-              </button>
-              <button
-                onClick={() => { window.open('https://app.deriv.com/cashier/withdrawal', '_blank'); setShowCashier(false); }}
-                className="w-full flex items-center gap-3 px-4 py-4 bg-[#1E90FF]/10 border border-[#1E90FF]/30 rounded-xl hover:bg-[#1E90FF]/20 transition-colors"
-              >
-                <span className="text-2xl">🏦</span>
-                <div className="text-left">
-                  <div className="font-semibold text-foreground">Withdraw</div>
-                  <div className="text-xs text-muted-foreground">Transfer funds to your bank</div>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CashierModal
+        open={showCashier}
+        onClose={() => setShowCashier(false)}
+        isDemo={isDemoAccount}
+      />
     </>
   );
 }
