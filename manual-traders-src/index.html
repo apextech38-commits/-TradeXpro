@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manual Traders — TradeX PRO</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: #0e0e1a; }
+    #dtrader-frame {
+      display: block;
+      width: 100%;
+      height: 100vh;
+      border: none;
+    }
+    #bridge-status {
+      position: fixed;
+      bottom: 12px;
+      right: 16px;
+      font: 11px/1 monospace;
+      color: #555;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <iframe
+    id="dtrader-frame"
+    src="https://dtrader.tradexpro.co.ke/#/manualtraders"
+    title="Manual Traders — powered by dtrader"
+    allow="clipboard-write"
+    loading="eager"
+  ></iframe>
+  <div id="bridge-status">connecting…</div>
+
+  <script type="module">
+    import { bridgeAuthToIframe, bridgeLogout } from '../lib/auth-bridge.js';
+
+    const iframe  = document.getElementById('dtrader-frame');
+    const status  = document.getElementById('bridge-status');
+
+    // Attach bridge — returns cleanup (not needed for a full-page embed)
+    bridgeAuthToIframe(iframe);
+
+    // Update status indicator after postMessage fires
+    window.addEventListener('message', (e) => {
+      if (e.origin !== 'https://dtrader.tradexpro.co.ke') return;
+      if (e.data?.type === 'DTRADER_READY') {
+        status.textContent = '● dtrader ready';
+        status.style.color = '#2ecc71';
+      }
+    });
+
+    // Relay logout from main site to iframe
+    window.addEventListener('tradexpro:auth:logout', () => {
+      bridgeLogout(iframe);
+      status.textContent = '○ logged out';
+      status.style.color = '#e74c3c';
+    });
+  </script>
+</body>
+</html>
