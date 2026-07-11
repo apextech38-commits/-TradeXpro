@@ -62,4 +62,4 @@ artifacts/tradex/public/manualtraders/assets/
 .migration-backup/
 packages/core/build/
 artifacts/tradex/public/manualtraders/
-*.zip
+*.zipdtrader-template/
