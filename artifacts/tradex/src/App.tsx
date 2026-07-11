@@ -1,5 +1,5 @@
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/context/AuthContext";
 import { BotProvider } from "@/context/BotContext";
@@ -10,12 +10,14 @@ import Navbar from "@/components/Navbar";
 import BottomBar from "@/components/BottomBar";
 import AIScanner from "@/components/AIScanner";
 import LoadingScreen from "@/components/LoadingScreen";
+const BotBuilder = lazy(() => import("@/pages/bot-builder/bot-builder"));
+const Charts = lazy(() => import("@/pages/chart/chart"));
 import { useState } from "react";
 
 import Dashboard from "@/pages/Dashboard";
-import BotBuilder from "@/pages/bot-builder/bot-builder";
+
 import ManualTraders from "@/pages/ManualTraders";
-import Charts from "@/pages/chart/chart";
+
 import TradingBots from "@/pages/TradingBots";
 import AnalysisTool from "@/pages/AnalysisTool";
 import Strategies from "@/pages/Strategies";
@@ -41,9 +43,9 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/botbuilder" element={<BotBuilder />} />
+          <Route path="/botbuilder" element={<Suspense fallback={<LoadingScreen />}><BotBuilder /></Suspense>} />
           <Route path="/manualtraders" element={<ManualTraders />} />
-          <Route path="/charts" element={<Charts />} />
+          <Route path="/charts" element={<Suspense fallback={<LoadingScreen />}><Charts /></Suspense>} />
           <Route path="/tradingbots" element={<TradingBots />} />
           <Route path="/analysistool" element={<AnalysisTool />} />
           <Route path="/strategies" element={<Strategies />} />
