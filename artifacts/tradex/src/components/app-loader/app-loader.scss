@@ -1,0 +1,312 @@
+/* ═══════════════════════════════════════════════════════
+   ProfitHub – Welcome Loader  (complete rebuild)
+   ═══════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+
+/* ── Root ──────────────────────────────────────────────── */
+.ph-loader {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: radial-gradient(ellipse 120% 80% at 50% 0%, #0d2040 0%, #050d1a 60%, #000000 100%);
+    font-family: 'Inter', system-ui, sans-serif;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+
+    &--fading {
+        opacity: 0;
+        transform: scale(1.03);
+        pointer-events: none;
+    }
+}
+
+/* ── Animated grid ─────────────────────────────────────── */
+.ph-loader__grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(0, 184, 173, 0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 184, 173, 0.07) 1px, transparent 1px);
+    background-size: 48px 48px;
+    animation: gridDrift 20s linear infinite;
+}
+
+@keyframes gridDrift {
+    from { background-position: 0 0; }
+    to   { background-position: 48px 48px; }
+}
+
+/* ── Glow orbs ─────────────────────────────────────────── */
+.ph-loader__orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    animation: orbPulse 6s ease-in-out infinite alternate;
+}
+
+.ph-loader__orb--1 {
+    width: 500px;
+    height: 500px;
+    top: -150px;
+    left: -100px;
+    background: radial-gradient(circle, rgba(0, 184, 173, 0.18) 0%, transparent 70%);
+    animation-delay: 0s;
+}
+
+.ph-loader__orb--2 {
+    width: 400px;
+    height: 400px;
+    bottom: -100px;
+    right: -80px;
+    background: radial-gradient(circle, rgba(34, 211, 238, 0.14) 0%, transparent 70%);
+    animation-delay: 3s;
+}
+
+@keyframes orbPulse {
+    from { opacity: 0.6; transform: scale(0.9); }
+    to   { opacity: 1;   transform: scale(1.1); }
+}
+
+/* ── Card ──────────────────────────────────────────────── */
+.ph-loader__card {
+    position: relative;
+    z-index: 2;
+    width: min(460px, 94vw);
+    background: rgba(8, 20, 40, 0.85);
+    border: 1px solid rgba(0, 184, 173, 0.25);
+    border-radius: 24px;
+    padding: 36px 32px 28px;
+    backdrop-filter: blur(24px);
+    box-shadow:
+        0 0 0 1px rgba(0, 184, 173, 0.08),
+        0 24px 80px rgba(0, 0, 0, 0.7),
+        0 0 60px rgba(0, 184, 173, 0.1);
+    animation: cardFloat 4s ease-in-out infinite;
+}
+
+@keyframes cardFloat {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-10px); }
+}
+
+/* ── Logo ──────────────────────────────────────────────── */
+.ph-loader__logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 10px;
+}
+
+.ph-loader__logo-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(0, 184, 173, 0.2), rgba(34, 211, 238, 0.1));
+    border: 1.5px solid rgba(0, 184, 173, 0.35);
+    display: grid;
+    place-items: center;
+    padding: 8px;
+    box-shadow: 0 0 20px rgba(0, 184, 173, 0.3);
+    animation: iconGlow 3s ease-in-out infinite alternate;
+
+    svg {
+        width: 100%;
+        height: 100%;
+    }
+}
+
+@keyframes iconGlow {
+    from { box-shadow: 0 0 15px rgba(0, 184, 173, 0.2); }
+    to   { box-shadow: 0 0 35px rgba(0, 184, 173, 0.5), 0 0 8px rgba(34, 211, 238, 0.3); }
+}
+
+.ph-loader__logo-text {
+    font-size: clamp(2rem, 6vw, 2.8rem);
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    color: #ffffff;
+    line-height: 1;
+
+    span {
+        color: #00b8ad;
+        background: linear-gradient(90deg, #00b8ad, #22d3ee);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+}
+
+/* ── Tagline ───────────────────────────────────────────── */
+.ph-loader__tagline {
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 0.5px;
+    margin-bottom: 24px;
+}
+
+/* ── Tiles ─────────────────────────────────────────────── */
+.ph-loader__tiles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 28px;
+}
+
+.ph-loader__tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 8px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(0, 184, 173, 0.1);
+    transition: all 0.3s ease;
+    animation: tileBounce 2.4s ease-in-out infinite;
+
+    &:hover {
+        background: rgba(0, 184, 173, 0.08);
+        border-color: rgba(0, 184, 173, 0.3);
+        transform: scale(1.05);
+    }
+}
+
+@keyframes tileBounce {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-4px); }
+}
+
+.ph-loader__tile-icon {
+    font-size: 22px;
+    line-height: 1;
+    filter: drop-shadow(0 0 6px rgba(0, 184, 173, 0.4));
+}
+
+.ph-loader__tile-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+    letter-spacing: 0.3px;
+}
+
+/* ── Progress ──────────────────────────────────────────── */
+.ph-loader__progress {
+    margin-bottom: 16px;
+}
+
+.ph-loader__progress-track {
+    position: relative;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.ph-loader__progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #00b8ad, #22d3ee, #00b8ad);
+    background-size: 200% 100%;
+    transition: width 0.1s linear;
+    box-shadow: 0 0 10px rgba(0, 184, 173, 0.5);
+    animation: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.ph-loader__progress-shine {
+    position: absolute;
+    top: 0;
+    left: -60px;
+    width: 60px;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+    animation: shine 1.4s ease-in-out infinite;
+}
+
+@keyframes shine {
+    0%   { left: -60px; opacity: 0; }
+    30%  { opacity: 1; }
+    100% { left: 110%; opacity: 0; }
+}
+
+.ph-loader__progress-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ph-loader__step-text {
+    font-size: 11px;
+    color: rgba(0, 184, 173, 0.9);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.ph-loader__pct {
+    font-size: 12px;
+    font-weight: 800;
+    color: #00b8ad;
+}
+
+/* ── Step dots ─────────────────────────────────────────── */
+.ph-loader__steps {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.ph-loader__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+
+    &--done {
+        background: rgba(0, 184, 173, 0.4);
+        border-color: #00b8ad;
+    }
+
+    &--active {
+        background: #00b8ad;
+        border-color: #22d3ee;
+        box-shadow: 0 0 8px rgba(0, 184, 173, 0.8);
+        transform: scale(1.3);
+    }
+}
+
+/* ── Footer ────────────────────────────────────────────── */
+.ph-loader__footer {
+    text-align: center;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Responsive ────────────────────────────────────────── */
+@media (max-width: 420px) {
+    .ph-loader__card {
+        padding: 24px 18px 20px;
+    }
+    .ph-loader__tiles {
+        gap: 8px;
+    }
+    .ph-loader__tile {
+        padding: 10px 6px;
+    }
+}

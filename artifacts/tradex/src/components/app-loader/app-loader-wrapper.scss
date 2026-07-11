@@ -1,0 +1,35 @@
+// Hide the main app content while loader is visible, but keep it loading in background
+// This allows React to render and initialize all components, make API calls, etc.
+.app-content-background {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    // Keep it in the DOM so React can render and initialize everything
+    z-index: 1;
+}
+
+// Show the main app content when loader finishes
+.app-content-visible {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    z-index: 1;
+    animation: siteZoomIn 0.8s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@keyframes siteZoomIn {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}

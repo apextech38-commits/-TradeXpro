@@ -1,0 +1,19 @@
+// Export all pages for convenient imports
+export { default as BestBots } from './best-bots';
+export { default as Dashboard } from './dashboard';
+export { default as BotBuilder } from './bot-builder';
+export { default as AutoTrades } from './auto-trades';
+export { default as ManualTrading } from './manual-trading';
+export { default as Scanner } from './scanner';
+export { default as Chart } from './chart';
+export { default as Analysistool } from './analysistool';
+export { default as Matches } from './matches';
+export { default as ChartWrapper } from './chart/chart-wrapper';
+export { default as TradingBots } from './free-bots/trading-bots';
+export { default as Strategies } from './free-bots/strategies';
+export { default as CopyTrading } from './copy-trading';
+export { default as TradingView } from './tradingview';
+export { default as SpeedBot } from './speedbot';
+export { default as Hyperbot } from './hyperbot';
+export { default as Diffbot } from './diffbot';
+export { default as Chats } from './chats';

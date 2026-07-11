@@ -1,0 +1,25 @@
+.hybrid-bots {
+    display: flex;
+    flex-direction: column;
+}
+
+.hybrid-bots__cards-container {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.hybrid-bots__card {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #f3f4f6;
+}
+
+.hybrid-bots__card--active {
+    background: #e6f2ff;
+}
+
+.hybrid-bots__content {
+    padding: 12px 0;
+}
