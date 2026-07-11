@@ -98,7 +98,18 @@
     "hostname": {
       "production": {
         "com": "tradexpro.co.ke"
+      },
+      "staging": {
+        "com": "tradexpro.co.ke"
       }
+    },
+    "auth2_url": {
+      "production": "https://auth.deriv.com/oauth2/auth",
+      "staging": "https://auth.deriv.com/oauth2/auth"
+    },
+    "footer": {
+      "enable_language_settings": true,
+      "enable_theme_toggle": true
     }
   }
 }
