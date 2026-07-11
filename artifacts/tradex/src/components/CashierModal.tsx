@@ -43,15 +43,27 @@ export default function CashierModal({ open, onClose, account, isDemo = false }:
   const [action, setAction] = useState<CashierAction | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resolvedRef = useRef(false);
+
+  const clearPendingTimeout = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
 
   useEffect(() => {
     if (!open) {
       setStatus("idle");
       setAction(null);
       setErrorMsg("");
+      clearPendingTimeout();
       wsRef.current?.close();
       wsRef.current = null;
     }
+    // Always clean up the timeout on unmount too.
+    return () => clearPendingTimeout();
   }, [open]);
 
   const requestCashierUrl = async (type: CashierAction) => {
@@ -70,6 +82,7 @@ export default function CashierModal({ open, onClose, account, isDemo = false }:
     setAction(type);
     setStatus("connecting");
     setErrorMsg("");
+    resolvedRef.current = false;
 
     // Step 1 — exchange the OAuth token for a one-time, pre-authorized WS URL
     let otpUrl: string;
@@ -95,6 +108,18 @@ export default function CashierModal({ open, onClose, account, isDemo = false }:
     const ws = new WebSocket(otpUrl);
     wsRef.current = ws;
 
+    // Hard timeout: if Deriv's gateway never answers with a `cashier` frame
+    // (dropped message, unexpected msg_type, silent stall), don't leave the
+    // user staring at "Preparing your ... link..." forever.
+    clearPendingTimeout();
+    timeoutRef.current = setTimeout(() => {
+      if (resolvedRef.current) return;
+      resolvedRef.current = true;
+      setStatus("error");
+      setErrorMsg("This is taking longer than expected. Please try again.");
+      ws.close();
+    }, 15000);
+
     ws.onopen = () => {
       ws.send(
         JSON.stringify({
@@ -109,6 +134,9 @@ export default function CashierModal({ open, onClose, account, isDemo = false }:
       const data = JSON.parse(event.data);
 
       if (data.msg_type === "cashier") {
+        resolvedRef.current = true;
+        clearPendingTimeout();
+
         if (data.error) {
           setStatus("error");
           setErrorMsg(data.error.message || `Unable to open ${type} page.`);
@@ -122,12 +150,23 @@ export default function CashierModal({ open, onClose, account, isDemo = false }:
     };
 
     ws.onerror = () => {
+      if (resolvedRef.current) return;
+      resolvedRef.current = true;
+      clearPendingTimeout();
       setStatus("error");
       setErrorMsg("Connection to Deriv failed. Check your network and try again.");
     };
 
     ws.onclose = () => {
       wsRef.current = null;
+      // Socket closed without ever resolving (no `cashier` frame, no onerror
+      // firing first) — surface it instead of leaving the UI stuck busy.
+      if (!resolvedRef.current) {
+        resolvedRef.current = true;
+        clearPendingTimeout();
+        setStatus("error");
+        setErrorMsg("Connection closed before we could prepare your link. Please try again.");
+      }
     };
   };
 
