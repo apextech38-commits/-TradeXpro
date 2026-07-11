@@ -49,3 +49,17 @@ Thumbs.db
 .local/
 manual-traders-app/
 manual-traders-src/.next/
+# migration/export cruft — never commit backup zips or build output
+.migration-backup/
+packages/core/build/
+artifacts/tradex/public/manualtraders/build/
+artifacts/tradex/public/manualtraders/server/
+artifacts/tradex/public/manualtraders/static/
+artifacts/tradex/public/manualtraders/chart/
+artifacts/tradex/public/manualtraders/assets/
+*.zip
+# migration/export cruft — never commit backup zips or build output
+.migration-backup/
+packages/core/build/
+artifacts/tradex/public/manualtraders/
+*.zip

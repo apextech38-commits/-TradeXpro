@@ -97,6 +97,7 @@ interface AuthState {
   logout: () => void;
   switchAccount: (acct: DerivAccount) => void;
   sendWS: (msg: object) => void;
+  refreshBalance: () => void;
 }
 
 const AuthContext = createContext<AuthState>({
@@ -113,6 +114,7 @@ const AuthContext = createContext<AuthState>({
   logout: () => {},
   switchAccount: () => {},
   sendWS: () => {},
+  refreshBalance: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -142,8 +144,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // One-off balance re-fetch (not a new subscription — the existing
+  // `subscribe: 1` stream should already push updates, this is a safety net
+  // for cases like returning from the Deriv cashier tab after a deposit or
+  // withdrawal, where we want the header to update immediately rather than
+  // wait on the next natural push).
+  const refreshBalance = useCallback(() => {
+    sendWS({ balance: 1 });
+  }, [sendWS]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshBalance();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [refreshBalance]);
+
   const connect = useCallback((account: DerivAccount) => {
     if (wsRef.current) {
+      // Null every handler, not just onclose — WebSocket.close() is async and
+      // a message already in flight on the OLD socket (e.g. a lingering
+      // balance push from the previous account) can still fire onmessage
+      // after we've already started connecting the new one, silently
+      // overwriting the new account's balance with the old account's.
+      wsRef.current.onopen = null;
+      wsRef.current.onmessage = null;
+      wsRef.current.onerror = null;
       wsRef.current.onclose = null;
       wsRef.current.close();
     }
@@ -179,9 +210,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const ws = new WebSocket(otpUrl);
       wsRef.current = ws;
+      // Belt-and-braces: even with handlers nulled above, every handler below
+      // re-checks that this socket is still the active one before touching
+      // shared state, so a superseded connection can never win a race.
+      const isCurrent = () => wsRef.current === ws;
 
       ws.onopen = () => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || !isCurrent()) return;
         setWsConnected(true);
         setIsAuthorized(true);
         setActiveAccount(account);
@@ -193,7 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       ws.onmessage = (event) => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || !isCurrent()) return;
         try {
           const msg = JSON.parse(event.data);
           if (msg.error) return;
@@ -228,10 +263,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       };
 
-      ws.onerror = () => setWsConnected(false);
+      ws.onerror = () => {
+        if (!isCurrent()) return;
+        setWsConnected(false);
+      };
 
       ws.onclose = () => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || !isCurrent()) return;
         setWsConnected(false);
         setIsAuthorized(false);
         const storedToken = localStorage.getItem(TOKEN_KEY);
@@ -403,6 +441,7 @@ const signup = useCallback(async () => {
         logout,
         switchAccount,
         sendWS,
+        refreshBalance,
       }}
     >
       {children}
