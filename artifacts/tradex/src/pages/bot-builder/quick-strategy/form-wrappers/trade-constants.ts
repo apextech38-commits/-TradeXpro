@@ -19,8 +19,9 @@ export const TRADE_TYPE_INDEX: TTradeTypesItemsIndex = Object.freeze({
     OPTIONS: 2,
 });
 
-// export const TRADE_TYPES = [localize('All'), localizeAccumulators(), localize('Options'), localize('Multipliers')];
-export const TRADE_TYPES = [localize('All'), localizeAccumulators(), localize('Options')];
+// Deferred to a function (not evaluated at module-import time) so localize() runs
+// after i18next.init() has actually been called — see STRATEGY_TRADE_ASSOCIATIONS below.
+export const TRADE_TYPES = (): string[] => [localize('All'), localizeAccumulators(), localize('Options')];
 
 export type TTStrategyTradeAssociation = {
     name: string;
@@ -31,7 +32,13 @@ export type TTStrategyTradeAssociation = {
 
 export type TStrategyTradeAssociations = Array<TTStrategyTradeAssociation>;
 
-export const STRATEGY_TRADE_ASSOCIATIONS: TStrategyTradeAssociations = [
+// Deferred to a function — evaluating this as a top-level const meant every
+// localize()/localizeAccumulators() call below ran at module-import time, before
+// App.tsx's initializeI18n() had executed (ES module imports evaluate before the
+// importing module's own top-level code, regardless of source order). That returned
+// undefined instead of the string, which got permanently baked into `parent`, causing
+// "Cannot read properties of undefined (reading 'toLowerCase')" in StrategyList.
+export const STRATEGY_TRADE_ASSOCIATIONS = (): TStrategyTradeAssociations => [
     {
         name: 'MARTINGALE',
         display_name: STRATEGIES().MARTINGALE.label,

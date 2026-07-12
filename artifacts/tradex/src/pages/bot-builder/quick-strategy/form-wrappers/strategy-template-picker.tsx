@@ -63,7 +63,7 @@ const StrategyTemplatePicker = observer(({ setCurrentStep, setSelectedTradeType 
                 />
             </div>
             <div className='strategy-template-picker__chips'>
-                {TRADE_TYPES.map((item, index) => (
+                {TRADE_TYPES().map((item, index) => (
                     <Chip.Selectable
                         key={index}
                         onClick={() => handleChipSelect(index)}

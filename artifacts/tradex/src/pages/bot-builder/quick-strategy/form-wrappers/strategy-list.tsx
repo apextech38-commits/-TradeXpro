@@ -45,13 +45,15 @@ const StrategyBlock = ({ title, items, onSelectStrategy }: TStrategyBlock) => {
 const StrategyList = ({ selector_chip_value, search_value, is_searching, onSelectStrategy }: TStrategyListProps) => {
     const result: TStrategyTradeAssociations = [];
     let is_parent_match_value = false;
+    const trade_types = TRADE_TYPES();
+    const strategy_trade_associations = STRATEGY_TRADE_ASSOCIATIONS();
 
     const filterVisibleParents = (parent: string) => {
         is_parent_match_value = parent.toLowerCase().includes(search_value.toLowerCase());
         return (is_searching && is_parent_match_value) || !is_searching;
     };
 
-    STRATEGY_TRADE_ASSOCIATIONS.filter(
+    strategy_trade_associations.filter(
         item =>
             item.parent.some(parent => filterVisibleParents(parent)) ||
             item.display_name.toLowerCase().includes(search_value.toLowerCase())
@@ -72,11 +74,11 @@ const StrategyList = ({ selector_chip_value, search_value, is_searching, onSelec
         result.push(tmp_item);
     });
 
-    const options = result.filter(item => item.parent.includes(TRADE_TYPES[TRADE_TYPE_INDEX.OPTIONS]));
-    const multiplier = result.filter(item => item.parent.includes(TRADE_TYPES[TRADE_TYPE_INDEX.MULTIPLIERS]));
-    const accumulator = result.filter(item => item.parent.includes(TRADE_TYPES[TRADE_TYPE_INDEX.ACCUMULATORS]));
+    const options = result.filter(item => item.parent.includes(trade_types[TRADE_TYPE_INDEX.OPTIONS]));
+    const multiplier = result.filter(item => item.parent.includes(trade_types[TRADE_TYPE_INDEX.MULTIPLIERS]));
+    const accumulator = result.filter(item => item.parent.includes(trade_types[TRADE_TYPE_INDEX.ACCUMULATORS]));
 
-    const selected_chip_value = TRADE_TYPES[selector_chip_value];
+    const selected_chip_value = trade_types[selector_chip_value];
 
     const strategy_types: TStrategyTypes = [
         { type: localizeAccumulators(), items: accumulator },

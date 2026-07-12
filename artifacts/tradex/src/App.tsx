@@ -10,7 +10,7 @@ import Navbar from "@/components/Navbar";
 import BottomBar from "@/components/BottomBar";
 import AIScanner from "@/components/AIScanner";
 import LoadingScreen from "@/components/LoadingScreen";
-const BotBuilder = lazy(() => import("@/pages/bot-builder/bot-builder"));
+import BotBuilderFrame from "@/pages/BotBuilderFrame";
 const Charts = lazy(() => import("@/pages/chart/chart"));
 import { useState } from "react";
 
@@ -43,7 +43,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/botbuilder" element={<Suspense fallback={<LoadingScreen />}><BotBuilder /></Suspense>} />
+          <Route path="/botbuilder" element={<BotBuilderFrame />} />
           <Route path="/manualtraders" element={<ManualTraders />} />
           <Route path="/charts" element={<Suspense fallback={<LoadingScreen />}><Charts /></Suspense>} />
           <Route path="/tradingbots" element={<TradingBots />} />
