@@ -376,7 +376,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     url.searchParams.set("response_type", "code");
     url.searchParams.set("client_id", OAUTH_APP_ID);
     url.searchParams.set("redirect_uri", REDIRECT_URI);
-url.searchParams.set("scope", "read trade payments");
+url.searchParams.set("scope", "trade");
     url.searchParams.set("state", state);
     url.searchParams.set("code_challenge", codeChallenge);
     url.searchParams.set("code_challenge_method", "S256");
@@ -396,7 +396,7 @@ const signup = useCallback(async () => {
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", OAUTH_APP_ID);
   url.searchParams.set("redirect_uri", REDIRECT_URI);
-url.searchParams.set("scope", "read trade payments");
+url.searchParams.set("scope", "trade");
   url.searchParams.set("state", state);
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
