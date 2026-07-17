@@ -1,30 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // TradeX Pro — Cashier Modal
 // ---------------------------------------------------------------------------
-// Calls Deriv's `cashier` API directly to get a live, session-scoped
-// deposit/withdraw URL, then opens it in a new tab.
+// Redirects the user straight to Deriv's own hosted, logged-in cashier
+// (app.deriv.com/cashier/...) instead of requesting a session-scoped URL via
+// the WS `cashier` API.
 //
-// Auth note: this endpoint does NOT accept a raw `{ authorize: token }` frame
-// on the public WS gateway (Options broker rejects it as an invalid input
-// shape). The proven pattern — already used by AuthContext.connect() — is:
-//   1. POST /accounts/{account}/otp  with the OAuth token  -> one-time otpUrl
-//   2. Open the WebSocket directly against that otpUrl (pre-authorized)
-//   3. No explicit `authorize` frame needed — the connection is already scoped
+// Why: the WS `cashier` call requires a "Payments" OAuth scope that's
+// separate from the read/trade scopes this app currently requests. Rather
+// than depend on that scope being granted, this sends the user to Deriv's
+// own site, where they authenticate with their own Deriv session if needed.
 //
-// Platform constraints (not stylistic choices — hard requirements):
-//   1. Deriv's cashier pages send X-Frame-Options: DENY, so they cannot be
-//      embedded in an iframe. This opens a new tab, same as before.
-//   2. Cashier only works on REAL money accounts. Demo accounts get a clear
-//      inline message instead of a failed API call.
+// Trade-off: the new tab is NOT pre-authorized with this app's OAuth token.
+// If the user isn't already logged into app.deriv.com in that browser,
+// Deriv will ask them to log in there. That's expected, not a bug.
+//
+// Balance refresh: no extra logic needed here. AuthContext already listens
+// for the tab regaining focus/visibility and calls refreshBalance() at that
+// point, which covers the "user comes back after depositing" case.
 // ---------------------------------------------------------------------------
 
-const APP_ID = "33ughhvgtxloGWBQQZEeD";
-const API_BASE = "https://api.derivws.com/trading/v1/options";
-
 type CashierAction = "deposit" | "withdraw";
-type Status = "idle" | "connecting" | "requesting" | "success" | "error";
 
 interface CashierAccount {
   account: string;
@@ -36,143 +33,50 @@ interface CashierModalProps {
   onClose: () => void;
   account: CashierAccount | null;
   isDemo?: boolean;
+  /** Optional: called right after opening the cashier tab, in addition to
+   *  AuthContext's own focus/visibility-based refresh. Pass your
+   *  `refreshBalance` from useAuth() if you want an extra nudge. */
+  onCashierOpened?: () => void;
 }
 
-export default function CashierModal({ open, onClose, account, isDemo = false }: CashierModalProps) {
-  const [status, setStatus] = useState<Status>("idle");
+export default function CashierModal({
+  open,
+  onClose,
+  account,
+  isDemo = false,
+  onCashierOpened,
+}: CashierModalProps) {
   const [action, setAction] = useState<CashierAction | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
-  const wsRef = useRef<WebSocket | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resolvedRef = useRef(false);
-
-  const clearPendingTimeout = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  };
 
   useEffect(() => {
     if (!open) {
-      setStatus("idle");
       setAction(null);
       setErrorMsg("");
-      clearPendingTimeout();
-      wsRef.current?.close();
-      wsRef.current = null;
     }
-    // Always clean up the timeout on unmount too.
-    return () => clearPendingTimeout();
   }, [open]);
 
-  const requestCashierUrl = async (type: CashierAction) => {
-    if (!account?.token || !account?.account) {
-      setStatus("error");
+  const openCashier = (type: CashierAction) => {
+    if (!account?.account) {
       setErrorMsg("No active session found. Please log in again.");
       return;
     }
 
     if (isDemo) {
-      setStatus("error");
       setErrorMsg("Cashier is only available on a real-money account. Switch out of Demo to continue.");
       return;
     }
 
-    setAction(type);
-    setStatus("connecting");
     setErrorMsg("");
-    resolvedRef.current = false;
+    setAction(type);
 
-    // Step 1 — exchange the OAuth token for a one-time, pre-authorized WS URL
-    let otpUrl: string;
-    try {
-      const otpRes = await fetch(`${API_BASE}/accounts/${account.account}/otp`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${account.token}`,
-          "Deriv-App-ID": APP_ID,
-        },
-      });
-      if (!otpRes.ok) throw new Error(`OTP failed (${otpRes.status})`);
-      const otpJson = await otpRes.json();
-      otpUrl = otpJson.data.url;
-    } catch {
-      setStatus("error");
-      setErrorMsg("Could not start a secure session. Please try again.");
-      return;
-    }
+    const url = `https://app.deriv.com/cashier/${type}`;
+    window.open(url, "_blank", "noopener,noreferrer");
 
-    // Step 2 — connect directly to the pre-authorized URL, no `authorize` frame
-    setStatus("requesting");
-    const ws = new WebSocket(otpUrl);
-    wsRef.current = ws;
-
-    // Hard timeout: if Deriv's gateway never answers with a `cashier` frame
-    // (dropped message, unexpected msg_type, silent stall), don't leave the
-    // user staring at "Preparing your ... link..." forever.
-    clearPendingTimeout();
-    timeoutRef.current = setTimeout(() => {
-      if (resolvedRef.current) return;
-      resolvedRef.current = true;
-      setStatus("error");
-      setErrorMsg("This is taking longer than expected. Please try again.");
-      ws.close();
-    }, 15000);
-
-    ws.onopen = () => {
-      ws.send(
-        JSON.stringify({
-          cashier: type,
-          provider: "doughflow",
-          type: "url",
-        })
-      );
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.msg_type === "cashier") {
-        resolvedRef.current = true;
-        clearPendingTimeout();
-
-        if (data.error) {
-          setStatus("error");
-          setErrorMsg(data.error.message || `Unable to open ${type} page.`);
-          ws.close();
-          return;
-        }
-        setStatus("success");
-        window.open(data.cashier as string, "_blank", "noopener,noreferrer");
-        ws.close();
-      }
-    };
-
-    ws.onerror = () => {
-      if (resolvedRef.current) return;
-      resolvedRef.current = true;
-      clearPendingTimeout();
-      setStatus("error");
-      setErrorMsg("Connection to Deriv failed. Check your network and try again.");
-    };
-
-    ws.onclose = () => {
-      wsRef.current = null;
-      // Socket closed without ever resolving (no `cashier` frame, no onerror
-      // firing first) — surface it instead of leaving the UI stuck busy.
-      if (!resolvedRef.current) {
-        resolvedRef.current = true;
-        clearPendingTimeout();
-        setStatus("error");
-        setErrorMsg("Connection closed before we could prepare your link. Please try again.");
-      }
-    };
+    onCashierOpened?.();
   };
 
   if (!open) return null;
-
-  const busy = status === "connecting" || status === "requesting";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
@@ -184,28 +88,22 @@ export default function CashierModal({ open, onClose, account, isDemo = false }:
         </div>
 
         <div className="flex flex-col gap-3 p-5">
-          {status === "error" && (
+          {errorMsg && (
             <div className="px-4 py-3 text-xs rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444]">
               {errorMsg}
             </div>
           )}
 
-          {busy && (
-            <div className="px-4 py-3 text-xs rounded-lg bg-[#1E90FF]/10 border border-[#1E90FF]/30 text-[#1E90FF]">
-              {status === "connecting" ? "Starting a secure session…" : `Preparing your ${action} link…`}
-            </div>
-          )}
-
-          {status === "success" && (
+          {action && !errorMsg && (
             <div className="px-4 py-3 text-xs rounded-lg bg-[#22C55E]/10 border border-[#22C55E]/30 text-[#22C55E]">
               Opened your {action} page in a new tab. Didn't see it? Check your popup blocker.
+              Come back to this tab once you're done — your balance will update automatically.
             </div>
           )}
 
           <button
-            onClick={() => requestCashierUrl("deposit")}
-            disabled={busy}
-            className="w-full flex items-center gap-3 px-4 py-4 bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-xl hover:bg-[#22C55E]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => openCashier("deposit")}
+            className="w-full flex items-center gap-3 px-4 py-4 bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-xl hover:bg-[#22C55E]/20 transition-colors"
           >
             <span className="text-2xl">💰</span>
             <div className="text-left">
@@ -215,9 +113,8 @@ export default function CashierModal({ open, onClose, account, isDemo = false }:
           </button>
 
           <button
-            onClick={() => requestCashierUrl("withdraw")}
-            disabled={busy}
-            className="w-full flex items-center gap-3 px-4 py-4 bg-[#1E90FF]/10 border border-[#1E90FF]/30 rounded-xl hover:bg-[#1E90FF]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => openCashier("withdraw")}
+            className="w-full flex items-center gap-3 px-4 py-4 bg-[#1E90FF]/10 border border-[#1E90FF]/30 rounded-xl hover:bg-[#1E90FF]/20 transition-colors"
           >
             <span className="text-2xl">🏦</span>
             <div className="text-left">
