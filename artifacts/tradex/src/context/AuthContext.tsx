@@ -328,16 +328,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         localStorage.setItem(TOKEN_KEY, access_token);
 
-        const acctRes = await fetchWithRetry(`${API_BASE}/accounts`, {
-          headers: {
-            Authorization: `Bearer ${access_token}`,
-            "Deriv-App-ID": OAUTH_APP_ID,
-          },
-        });
-        if (!acctRes.ok) throw new Error(`Accounts fetch failed (${acctRes.status})`);
-        const { data: optionsAccounts } = await acctRes.json() as {
-          data: Array<{ account_id: string; account_type: string; currency: string }>;
+        const fetchAccounts = async () => {
+          const res = await fetchWithRetry(`${API_BASE}/accounts`, {
+            headers: {
+              Authorization: `Bearer ${access_token}`,
+              "Deriv-App-ID": OAUTH_APP_ID,
+            },
+          });
+          if (!res.ok) throw new Error(`Accounts fetch failed (${res.status})`);
+          const { data } = (await res.json()) as {
+            data: Array<{ account_id: string; account_type: string; currency: string }>;
+          };
+          return data ?? [];
         };
+
+        let optionsAccounts = await fetchAccounts();
+        // fetchWithRetry only retries on 5xx/network errors. A 200 with just one
+        // account can also mean Deriv hasn't finished linking the other account
+        // yet right after a fresh grant — this re-check tells a real single-account
+        // login apart from provisioning lag, without retrying forever.
+        if (optionsAccounts.length === 1) {
+          await new Promise((r) => setTimeout(r, 1500));
+          const retry = await fetchAccounts();
+          if (retry.length > optionsAccounts.length) optionsAccounts = retry;
+        }
 
         if (!optionsAccounts?.length) throw new Error("No Options accounts found");
 
