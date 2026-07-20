@@ -1,4 +1,3 @@
-import Chart from './chart';
-import './chart.scss';
+import ChartWrapper from './chart-wrapper';
 
-export default Chart;
+export default ChartWrapper;

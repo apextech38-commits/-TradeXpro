@@ -5,7 +5,7 @@ export { default as BotBuilder } from './bot-builder';
 export { default as AutoTrades } from './auto-trades';
 export { default as ManualTrading } from './manual-trading';
 export { default as Scanner } from './scanner';
-export { default as Chart } from './chart';
+export { default as Chart } from './chart/chart-wrapper';
 export { default as Analysistool } from './analysistool';
 export { default as Matches } from './matches';
 export { default as ChartWrapper } from './chart/chart-wrapper';
