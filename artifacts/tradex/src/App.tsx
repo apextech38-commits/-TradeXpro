@@ -1,5 +1,5 @@
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { useEffect, lazy, Suspense } from "react";
+import { useEffect } from "react";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/context/AuthContext";
 import { BotProvider } from "@/context/BotContext";
@@ -11,7 +11,7 @@ import BottomBar from "@/components/BottomBar";
 import AIScanner from "@/components/AIScanner";
 import LoadingScreen from "@/components/LoadingScreen";
 import BotBuilderFrame from "@/pages/BotBuilderFrame";
-const Charts = lazy(() => import("@/pages/chart/chart"));
+import ChartsEmbed from "@/pages/chart/charts-embed";
 import { useState } from "react";
 
 import Dashboard from "@/pages/Dashboard";
@@ -45,7 +45,7 @@ function AppContent() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/botbuilder" element={<BotBuilderFrame />} />
           <Route path="/manualtraders" element={<ManualTraders />} />
-          <Route path="/charts" element={<Suspense fallback={<LoadingScreen />}><Charts /></Suspense>} />
+          <Route path="/charts" element={<ChartsEmbed />} />
           <Route path="/tradingbots" element={<TradingBots />} />
           <Route path="/analysistool" element={<AnalysisTool />} />
           <Route path="/strategies" element={<Strategies />} />
