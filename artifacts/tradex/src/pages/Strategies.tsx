@@ -6,7 +6,7 @@ import {
 import { DERIV_APP_ID } from "@/context/AuthContext";
 
 const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public`;
-const TOKEN_KEY = "deriv_token";
+const TOKEN_KEY = "tradex_access_token";
 
 const MARKETS = [
   { label: "Volatility 100 Index",     id: "R_100" },

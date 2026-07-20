@@ -950,7 +950,7 @@ function ApexAITab() {
 
   const handleAnalyze = () => {
     if (!isLoggedIn) { window.location.href = window.location.origin + "/#/dashboard"; return; }
-    const token = localStorage.getItem("deriv_token");
+    const token = localStorage.getItem("tradex_access_token");
     if (!token) { setStatus("Please log in first"); return; }
     setStatus("Getting proposal..."); setPayout(null); setPropId(null);
 
@@ -982,7 +982,7 @@ function ApexAITab() {
 
   const handleBuy = () => {
     if (!propId) { handleAnalyze(); return; }
-    const token = localStorage.getItem("deriv_token");
+    const token = localStorage.getItem("tradex_access_token");
     if (!token) { setStatus("Please log in first"); return; }
     setStatus("Placing trade...");
     const ws = new WebSocket(WS_URL);
@@ -1480,7 +1480,7 @@ export default function AnalysisTool() {
       setShowAuthGate(true);
       return;
     }
-    const token = localStorage.getItem("deriv_token");
+    const token = localStorage.getItem("tradex_access_token");
     if (!token) {
       setShowAuthGate(true);
       return;

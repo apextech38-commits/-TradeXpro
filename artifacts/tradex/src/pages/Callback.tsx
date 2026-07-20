@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { OAUTH_APP_ID } from "@/context/AuthContext";
 
-const TOKEN_KEY = "deriv_token";
+const TOKEN_KEY = "tradex_access_token";
 const ACCOUNTS_KEY = "tradex-deriv-accounts";
 
 // Must match exactly what is registered in the Deriv API dashboard for app_id 129077.

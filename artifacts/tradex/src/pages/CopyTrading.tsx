@@ -7,7 +7,7 @@ import { OAUTH_APP_ID } from "@/context/AuthContext";
 
 const WS_URL   = `wss://api.derivws.com/trading/v1/options/ws/public`;
 const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${OAUTH_APP_ID}&l=EN&brand=deriv`;
-const TOKEN_KEY = "deriv_token";
+const TOKEN_KEY = "tradex_access_token";
 
 // ─── Inline toast ─────────────────────────────────────────────────────────────
 interface Toast { id: number; msg: string; type: "success" | "error" }
