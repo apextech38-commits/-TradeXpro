@@ -1,20 +1,30 @@
-.risk-disclaimer-link {
+.risk-disclaimer-button {
     position: fixed;
-    left: 12px;
-    bottom: 10px;
     z-index: 1000;
-    background: none;
-    border: none;
-    padding: 4px 6px;
-    margin: 0;
-    color: #92700a;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    line-height: 1;
+    animation: slide-in-left 0.5s ease-out;
+    touch-action: none;
+    cursor: grab;
 
-    &:hover {
-        text-decoration: underline;
+    &__btn {
+        background: #1f6feb !important;
+        color: #ffffff !important;
+        border: none !important;
+        padding: 8px 16px !important;
+        border-radius: 4px !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+        transition: all 0.3s ease !important;
+
+        &:hover {
+            background: #1957d6 !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+        }
+
+        &:active {
+            transform: translateY(0) !important;
+        }
     }
 }
 
@@ -23,19 +33,23 @@
         padding: 24px;
     }
 
+    &__title {
+        margin-bottom: 20px;
+        text-align: center;
+        color: var(--brand-red-coral);
+    }
+
     &__text {
         line-height: 1.8;
-        margin-bottom: 16px;
+        margin-bottom: 20px;
         text-align: left;
-        display: block;
     }
 
     &__points {
         display: flex;
         flex-direction: column;
-        gap: 10px;
-        margin-bottom: 16px;
-        margin-left: 8px;
+        gap: 12px;
+        margin-bottom: 20px;
     }
 
     &__point {
@@ -44,6 +58,7 @@
         align-items: flex-start;
 
         span {
+            color: var(--brand-red-coral);
             font-weight: bold;
             line-height: 1.4;
             margin-top: 2px;
@@ -52,47 +67,56 @@
 
     &__footer {
         display: block;
-        margin-bottom: 20px;
+        margin-bottom: 24px;
         line-height: 1.7;
     }
 
     &__actions {
         display: flex;
-        justify-content: flex-start;
-        gap: 12px;
+        justify-content: center;
+        gap: 16px;
+        margin-top: 24px;
         flex-wrap: wrap;
     }
 
-    &__dont-show-btn {
-        background: #e03e3e !important;
+    &__understand-btn {
+        background: #1f6feb !important;
         color: #ffffff !important;
         border: none !important;
-        padding: 8px 20px !important;
+        padding: 12px 32px !important;
         border-radius: 4px !important;
         font-weight: 600 !important;
+        min-width: 150px;
 
         &:hover {
-            background: #c22e2e !important;
+            background: #1957d6 !important;
         }
     }
 
-    &__close-btn {
-        background: #2eb872 !important;
+    &__dont-show-btn {
+        background: #d64545 !important;
         color: #ffffff !important;
         border: none !important;
-        padding: 8px 20px !important;
+        padding: 12px 32px !important;
         border-radius: 4px !important;
         font-weight: 600 !important;
+        min-width: 150px;
 
         &:hover {
-            background: #249a5e !important;
+            background: #b63232 !important;
         }
     }
 }
 
+// Mobile optimizations
 @media (max-width: 768px) {
-    .risk-disclaimer-link {
-        font-size: 11px;
+    .risk-disclaimer-button {
+        z-index: 1001; // Ensure it stays above content
+
+        &__btn {
+            font-size: 11px !important;
+            padding: 6px 12px !important;
+        }
     }
 
     .risk-disclaimer-modal {
@@ -100,8 +124,29 @@
             padding: 20px;
         }
 
+        &__title {
+            font-size: 16px;
+        }
+
         &__text {
             font-size: 13px;
         }
+
+        &__understand-btn {
+            padding: 10px 24px !important;
+            font-size: 13px !important;
+        }
+    }
+}
+
+// Animation for floating button
+@keyframes slide-in-left {
+    from {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
     }
 }
