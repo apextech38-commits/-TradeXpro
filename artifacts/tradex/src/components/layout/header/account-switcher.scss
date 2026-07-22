@@ -837,6 +837,21 @@ $account-balance-green: #0b6b37;
         overflow-y: auto;
     }
 
+    &__email {
+        align-items: center;
+        background: var(--general-main-1);
+        border-bottom: 1px solid var(--general-section-1);
+        display: flex;
+        padding: 0.8rem 1.6rem;
+    }
+
+    &__email-text {
+        color: var(--text-less-prominent);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     &__tabs {
         display: grid;
         grid-template-columns: 1fr 1fr;
