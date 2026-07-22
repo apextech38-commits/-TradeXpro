@@ -32,6 +32,18 @@ interface ScanResult {
   barrier: number;
 }
 
+interface ScannerTrade {
+  contractId: number;
+  market: string;
+  symbol: string;
+  contractType: "DIGITOVER" | "DIGITUNDER";
+  barrier: number;
+  stake: number;
+  status: "running" | "won" | "lost";
+  profit: number | null;
+  timestamp: number;
+}
+
 export default function AIScanner() {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"ov1un8" | "ov2un7">("ov1un8");
@@ -49,13 +61,14 @@ export default function AIScanner() {
   const pendingRef = useRef<Set<string>>(new Set());
 
   // --- Trade execution (separate authenticated socket, per AuthContext's OTP pattern) ---
-  const { activeAccount } = useAuth();
+  const { activeAccount, balance, currency } = useAuth();
   const [stake, setStake] = useState("1");
   const [duration, setDuration] = useState("1");
   const [firingTrade, setFiringTrade] = useState(false);
   const [tradeStatus, setTradeStatus] = useState<string | null>(null);
   const [awaitingConfirm, setAwaitingConfirm] = useState(false);
   const authWsRef = useRef<WebSocket | null>(null);
+  const [trades, setTrades] = useState<ScannerTrade[]>([]);
 
   useEffect(() => {
     return () => {
@@ -90,6 +103,27 @@ export default function AIScanner() {
         .then((json) => {
           const ws = new WebSocket(json.data.url);
           authWsRef.current = ws;
+          ws.addEventListener("message", (event: MessageEvent) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.msg_type !== "proposal_open_contract") return;
+              const poc = data.proposal_open_contract;
+              if (!poc?.contract_id) return;
+              setTrades((prev) =>
+                prev.map((t) =>
+                  t.contractId === poc.contract_id
+                    ? {
+                        ...t,
+                        status: poc.is_sold ? (poc.profit >= 0 ? "won" : "lost") : "running",
+                        profit: poc.profit ?? t.profit,
+                      }
+                    : t
+                )
+              );
+            } catch {
+              /* ignore unrelated frames */
+            }
+          });
           ws.onopen = () => resolve(ws);
           ws.onerror = () => reject(new Error("Authenticated socket connection failed"));
         })
@@ -149,7 +183,27 @@ export default function AIScanner() {
       setTradeStatus("Placing trade...");
       const buyResult = await sendAndAwait({ buy: proposalId, price: askPrice });
 
-      setTradeStatus(`✓ Trade placed — contract ${buyResult.buy?.contract_id}`);
+      const contractId = buyResult.buy?.contract_id;
+      if (contractId) {
+        setTrades((prev) => [
+          {
+            contractId,
+            market: lastResult.market,
+            symbol: lastResult.symbol,
+            contractType: lastResult.contractType,
+            barrier: lastResult.barrier,
+            stake: Number(stake) || 1,
+            status: "running",
+            profit: null,
+            timestamp: Date.now(),
+          },
+          ...prev,
+        ]);
+        // Subscribe to live updates for this contract (won/lost, running P/L)
+        ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 }));
+      }
+
+      setTradeStatus(`✓ Trade placed — contract ${contractId}`);
     } catch (err: any) {
       setTradeStatus(`⚠ ${err.message || "Trade failed"}`);
     } finally {
@@ -356,7 +410,12 @@ export default function AIScanner() {
 
             {/* Modal Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-card shrink-0">
-              <h2 className="text-base font-bold text-foreground">Entry Scanner</h2>
+              <div>
+                <h2 className="text-base font-bold text-foreground">Entry Scanner</h2>
+                <p data-testid="scanner-live-balance" className="text-xs text-muted-foreground mt-0.5">
+                  Balance: <span className="font-semibold text-foreground">{balance !== null ? `${balance.toFixed(2)} ${currency}` : "—"}</span>
+                </p>
+              </div>
               <button
                 onClick={() => { setOpen(false); setAwaitingConfirm(false); }}
                 className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
@@ -599,6 +658,46 @@ export default function AIScanner() {
                     className={`text-xs px-1 pb-2 ${tradeStatus.startsWith("✓") ? "text-[#22C55E]" : tradeStatus.startsWith("⚠") ? "text-red-500" : "text-muted-foreground"}`}
                   >
                     {tradeStatus}
+                  </div>
+                )}
+
+                {/* Trade History */}
+                {trades.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    <p className="text-xs text-muted-foreground font-medium">Trade History</p>
+                    <div data-testid="scanner-trade-history" className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {trades.map((t) => {
+                        const label = `${t.contractType === "DIGITOVER" ? "Over" : "Under"} ${t.barrier}`;
+                        const statusStyles =
+                          t.status === "running"
+                            ? "bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/30"
+                            : t.status === "won"
+                            ? "bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/30"
+                            : "bg-red-500/10 text-red-500 border-red-500/30";
+                        return (
+                          <div
+                            key={t.contractId}
+                            data-testid={`scanner-history-item-${t.contractId}`}
+                            className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-foreground truncate">{t.market}</p>
+                              <p className="text-[11px] text-muted-foreground">{label} · ${t.stake.toFixed(2)}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {t.profit !== null && (
+                                <span className={`text-xs font-semibold ${t.profit >= 0 ? "text-[#22C55E]" : "text-red-500"}`}>
+                                  {t.profit >= 0 ? "+" : ""}{t.profit.toFixed(2)}
+                                </span>
+                              )}
+                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${statusStyles} ${t.status === "running" ? "animate-pulse" : ""}`}>
+                                {t.status}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
