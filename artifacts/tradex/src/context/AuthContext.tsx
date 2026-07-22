@@ -173,12 +173,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const onBalanceBroadcast = (event: MessageEvent) => {
       if (event.origin !== "https://dtrader.tradexpro.co.ke") return;
       if (event.data?.type !== "BALANCE_UPDATE") return;
+      // Guard against the iframe being authorized against a different
+      // account than the shell currently shows (e.g. iframe boot picking
+      // the wrong default) — never apply a balance for an account that
+      // isn't the one currently active in this shell.
+      if (event.data.loginid && activeAccount && event.data.loginid !== activeAccount.account) return;
       setBalance(event.data.balance ?? null);
       setCurrency(event.data.currency || "USD");
     };
     window.addEventListener("message", onBalanceBroadcast);
     return () => window.removeEventListener("message", onBalanceBroadcast);
-  }, []);
+  }, [activeAccount]);
 
   const connect = useCallback((account: DerivAccount) => {
     if (wsRef.current) {
