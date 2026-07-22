@@ -7,6 +7,7 @@ import {
   useCallback,
   ReactNode,
 } from "react";
+import { ErrorLogger } from "@/utils/error-logger";
 
 export const DERIV_APP_ID = "33ughhvgtxloGWBQQZEeD";
 export const OAUTH_APP_ID = "33ughhvgtxloGWBQQZEeD";
@@ -255,10 +256,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mountedRef.current || !isCurrent()) return;
         try {
           const msg = JSON.parse(event.data);
-          if (msg.error) return;
+          if (msg.error) {
+            if (msg.msg_type === "authorize") {
+              ErrorLogger.warn("AuthContext", "authorize (email) request returned an error", {
+                error: msg.error,
+              });
+            }
+            return;
+          }
           switch (msg.msg_type) {
             case "authorize":
-              setEmail(msg.authorize?.email ?? null);
+              // Purely cosmetic (shown in the account dropdown) — if this
+              // broker's backend doesn't return email here, we just never
+              // set it and the UI simply omits the row.
+              if (msg.authorize?.email) setEmail(msg.authorize.email);
               break;
             case "balance":
               setBalance(msg.balance?.balance ?? null);
