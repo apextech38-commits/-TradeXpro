@@ -43,40 +43,49 @@ type TModalElement = {
     width?: string;
 };
 
-const ModalElement = ({
-    children,
-    className,
-    close_icon_color,
-    elements_to_ignore,
-    has_close_icon = true,
-    has_return_icon = false,
-    header,
-    header_background_color,
-    height,
-    id,
-    is_confirmation_modal,
-    is_open,
-    is_risk_warning_visible,
-    is_title_centered,
-    is_vertical_bottom,
-    is_vertical_centered,
-    is_vertical_top,
-    onMount,
-    onReturn,
-    onUnmount,
-    portalId = 'modal_root',
-    renderTitle,
-    should_close_on_click_outside,
-    should_header_stick_body = true,
-    small,
-    title,
-    toggleModal,
-    width,
-}: React.PropsWithChildren<TModalElement>) => {
+const ModalElement = React.forwardRef<HTMLDivElement, React.PropsWithChildren<TModalElement>>(
+    (
+        {
+            children,
+            className,
+            close_icon_color,
+            elements_to_ignore,
+            has_close_icon = true,
+            has_return_icon = false,
+            header,
+            header_background_color,
+            height,
+            id,
+            is_confirmation_modal,
+            is_open,
+            is_risk_warning_visible,
+            is_title_centered,
+            is_vertical_bottom,
+            is_vertical_centered,
+            is_vertical_top,
+            onMount,
+            onReturn,
+            onUnmount,
+            portalId = 'modal_root',
+            renderTitle,
+            should_close_on_click_outside,
+            should_header_stick_body = true,
+            small,
+            title,
+            toggleModal,
+            width,
+        },
+        forwarded_ref
+    ) => {
     const el_ref = React.useRef(document.createElement('div'));
     const el_portal_node = portalId && document.getElementById(portalId);
     const modal_root_ref = React.useRef(el_portal_node || document.getElementById(portalId));
     const wrapper_ref = React.useRef<HTMLDivElement>(null);
+    const setWrapperRef = (node: HTMLDivElement | null) => {
+        wrapper_ref.current = node;
+        if (typeof forwarded_ref === 'function') forwarded_ref(node);
+        else if (forwarded_ref) (forwarded_ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+    };
 
     const portal_elements_selector = [
         '.dc-datepicker__picker',
@@ -144,7 +153,7 @@ const ModalElement = ({
 
     return ReactDOM.createPortal(
         <div
-            ref={wrapper_ref}
+            ref={setWrapperRef}
             id={id}
             className={classNames('dc-modal__container', {
                 [`dc-modal__container_${className}`]: className,
@@ -230,7 +239,9 @@ const ModalElement = ({
         </div>,
         el_ref.current
     );
-};
+    }
+);
+ModalElement.displayName = 'ModalElement';
 
 type TModal = TModalElement & {
     exit_classname?: string;
@@ -272,10 +283,14 @@ const Modal = ({
     transition_timeout,
     toggleModal,
     width,
-}: React.PropsWithChildren<TModal>) => (
+}: React.PropsWithChildren<TModal>) => {
+    const modal_node_ref = React.useRef<HTMLDivElement>(null);
+
+    return (
     <CSSTransition
         appear
         in={is_open}
+        nodeRef={modal_node_ref}
         timeout={transition_timeout || 250}
         classNames={{
             appear: 'dc-modal__container--enter',
@@ -288,6 +303,7 @@ const Modal = ({
         onExited={onExited}
     >
         <ModalElement
+            ref={modal_node_ref}
             className={className}
             close_icon_color={close_icon_color}
             should_header_stick_body={should_header_stick_body}
@@ -319,7 +335,8 @@ const Modal = ({
             {children}
         </ModalElement>
     </CSSTransition>
-);
+    );
+};
 
 Modal.Body = Body;
 Modal.Footer = Footer;
