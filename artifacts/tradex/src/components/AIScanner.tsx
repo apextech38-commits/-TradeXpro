@@ -103,41 +103,51 @@ export default function AIScanner() {
     setTradeStatus("Connecting to your account...");
     try {
       const ws = await openAuthenticatedSocket();
-      setTradeStatus(`Placing ${lastResult.contractType === "DIGITOVER" ? "Over" : "Under"} ${lastResult.barrier} on ${lastResult.market}...`);
 
-      const reqId = Math.floor(Math.random() * 1_000_000);
-      const buyResult = await new Promise<any>((resolve, reject) => {
-        const onMsg = (event: MessageEvent) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.req_id !== reqId) return;
-            ws.removeEventListener("message", onMsg);
-            if (data.error) reject(new Error(data.error.message || "Trade rejected"));
-            else resolve(data);
-          } catch {
-            /* ignore unrelated frames */
-          }
-        };
-        ws.addEventListener("message", onMsg);
+      // Helper: send a request and resolve on the matching req_id response
+      const sendAndAwait = (payload: Record<string, unknown>): Promise<any> => {
+        const reqId = Math.floor(Math.random() * 1_000_000);
+        return new Promise((resolve, reject) => {
+          const onMsg = (event: MessageEvent) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.req_id !== reqId) return;
+              ws.removeEventListener("message", onMsg);
+              if (data.error) reject(new Error(data.error.message || "Request rejected"));
+              else resolve(data);
+            } catch {
+              /* ignore unrelated frames */
+            }
+          };
+          ws.addEventListener("message", onMsg);
+          ws.send(JSON.stringify({ ...payload, req_id: reqId }));
+        });
+      };
 
-        ws.send(
-          JSON.stringify({
-            buy: 1,
-            price: Number(stake) || 1,
-            req_id: reqId,
-            parameters: {
-              amount: Number(stake) || 1,
-              basis: "stake",
-              contract_type: lastResult.contractType,
-              currency: activeAccount?.currency || "USD",
-              duration: Number(duration) || 1,
-              duration_unit: "t",
-              symbol: lastResult.symbol,
-              barrier: String(lastResult.barrier),
-            },
-          })
-        );
+      // Step 1: Price Proposal — underlying_symbol (not symbol) for PKCE/OTP sessions,
+      // barrier as a number, matching the app's own working bot-skeleton request shape.
+      setTradeStatus(`Getting price for ${lastResult.contractType === "DIGITOVER" ? "Over" : "Under"} ${lastResult.barrier} on ${lastResult.market}...`);
+      const proposalRes = await sendAndAwait({
+        proposal: 1,
+        amount: Number(stake) || 1,
+        basis: "stake",
+        contract_type: lastResult.contractType,
+        currency: activeAccount?.currency || "USD",
+        duration: Number(duration) || 1,
+        duration_unit: "t",
+        underlying_symbol: lastResult.symbol,
+        barrier: lastResult.barrier,
       });
+
+      const proposalId = proposalRes.proposal?.id;
+      const askPrice = proposalRes.proposal?.ask_price;
+      if (!proposalId || askPrice === undefined) {
+        throw new Error("No proposal returned — check symbol/contract availability");
+      }
+
+      // Step 2: Buy using the proposal id and its ask price
+      setTradeStatus("Placing trade...");
+      const buyResult = await sendAndAwait({ buy: proposalId, price: askPrice });
 
       setTradeStatus(`✓ Trade placed — contract ${buyResult.buy?.contract_id}`);
     } catch (err: any) {
