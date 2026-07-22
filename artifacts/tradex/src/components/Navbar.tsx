@@ -42,7 +42,7 @@ export default function Navbar() {
   const location = useLocation();
   const {
     isLoggedIn, isAuthorized, activeAccount, accounts,
-    balance, currency, wsConnected, login, signup, logout, switchAccount,
+    balance, currency, email, wsConnected, login, signup, logout, switchAccount,
   } = useAuth();
   const { theme, setTheme } = useTheme();
 
@@ -130,11 +130,18 @@ export default function Navbar() {
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowAccountMenu(false)} />
                   <div className="absolute right-0 mt-1 z-50 w-64 bg-white border border-[#E5E7EB] rounded-xl shadow-xl overflow-hidden">
-                    <div className="px-4 py-3 border-b border-[#E5E7EB] bg-[#F4F6FA] flex items-center gap-2">
-                      {wsConnected && isAuthorized
-                        ? <><Wifi className="w-4 h-4 text-[#22C55E]" /><span className="text-xs text-[#22C55E] font-medium">Live — Connected to Deriv</span></>
-                        : <><WifiOff className="w-4 h-4 text-[#F59E0B]" /><span className="text-xs text-[#F59E0B] font-medium">Reconnecting...</span></>
-                      }
+                    <div className="px-4 py-3 border-b border-[#E5E7EB] bg-[#F4F6FA]">
+                      <div className="flex items-center gap-2">
+                        {wsConnected && isAuthorized
+                          ? <><Wifi className="w-4 h-4 text-[#22C55E]" /><span className="text-xs text-[#22C55E] font-medium">Live — Connected to Deriv</span></>
+                          : <><WifiOff className="w-4 h-4 text-[#F59E0B]" /><span className="text-xs text-[#F59E0B] font-medium">Reconnecting...</span></>
+                        }
+                      </div>
+                      {email && (
+                        <div className="mt-1 text-[11px] text-[#6B7280] truncate" title={email}>
+                          {email}
+                        </div>
+                      )}
                     </div>
                     {accounts.map(acct => (
                       <button

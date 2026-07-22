@@ -90,6 +90,7 @@ interface AuthState {
   accounts: DerivAccount[];
   balance: number | null;
   currency: string;
+  email: string | null;
   wsConnected: boolean;
   recentTrades: StatementTrade[];
   login: () => void;
@@ -107,6 +108,7 @@ const AuthContext = createContext<AuthState>({
   accounts: [],
   balance: null,
   currency: "USD",
+  email: null,
   wsConnected: false,
   recentTrades: [],
   login: () => {},
@@ -131,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [currency, setCurrency] = useState("USD");
+  const [email, setEmail] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [recentTrades, setRecentTrades] = useState<StatementTrade[]>([]);
 
@@ -240,6 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setWsConnected(true);
         setIsAuthorized(true);
         setActiveAccount(account);
+        ws.send(JSON.stringify({ authorize: account.token }));
         ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
         ws.send(JSON.stringify({ statement: 1, limit: 50 }));
         ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
@@ -253,6 +257,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const msg = JSON.parse(event.data);
           if (msg.error) return;
           switch (msg.msg_type) {
+            case "authorize":
+              setEmail(msg.authorize?.email ?? null);
+              break;
             case "balance":
               setBalance(msg.balance?.balance ?? null);
               setCurrency(msg.balance?.currency || "USD");
@@ -446,6 +453,7 @@ url.searchParams.set("scope", "trade");
     setActiveAccount(null);
     setIsAuthorized(false);
     setBalance(null);
+    setEmail(null);
     setWsConnected(false);
     setRecentTrades([]);
   };
@@ -454,6 +462,7 @@ url.searchParams.set("scope", "trade");
     setActiveAccount(acct);
     setIsAuthorized(false);
     setBalance(null);
+    setEmail(null);
     setRecentTrades([]);
     localStorage.setItem("tradex_active_acct_token", acct.token); // per-account token, not OAuth token
     connect(acct);
@@ -468,6 +477,7 @@ url.searchParams.set("scope", "trade");
         accounts,
         balance,
         currency,
+        email,
         wsConnected,
         recentTrades,
         login,
