@@ -345,7 +345,7 @@ export default class ClientStore {
 
     hasSufficientDemoBalance = (required_amount: number, loginid?: string) => {
         const resolvedLoginId = loginid || this.loginid || getAccountId() || '';
-        if (!resolvedLoginId || !isDemoAccount(resolvedLoginId)) return true;
+        if (!resolvedLoginId) return true;
 
         const normalizedRequiredAmount = Number(required_amount);
         if (!Number.isFinite(normalizedRequiredAmount) || normalizedRequiredAmount <= 0) return true;
