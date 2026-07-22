@@ -51,7 +51,7 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
     const [demoResetError, setDemoResetError] = useState('');
     const [demoResetSuccess, setDemoResetSuccess] = useState('');
     const wrapperRef = useRef<HTMLDivElement>(null);
-    const { accountList, activeLoginid } = useApiBase();
+    const { accountList, activeLoginid, authData } = useApiBase();
     const { client, run_panel } = useStore() ?? {};
 
     const is_bot_running = run_panel?.is_running || api_base.is_running;
@@ -308,6 +308,13 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
             </AccountInfoWrapper>
             {isOpen && (
                 <div className='acc-dropdown' role='listbox'>
+                    {authData?.email && (
+                        <div className='acc-dropdown__email' title={authData.email}>
+                            <Text as='span' size='xxxs' className='acc-dropdown__email-text'>
+                                {authData.email}
+                            </Text>
+                        </div>
+                    )}
                     <div className='acc-dropdown__tabs' role='tablist'>
                         <button
                             type='button'
