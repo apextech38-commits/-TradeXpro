@@ -64,3 +64,4 @@ packages/core/build/
 artifacts/tradex/public/manualtraders/
 *.zip
 dtrader-template/
+tradexpro-botbuilder/
