@@ -74,6 +74,17 @@ export default function ManualTraders() {
     iframeRef.current?.contentWindow?.postMessage({ type: 'AUTH_LOGOUT' }, DTRADER_URL);
   }, [isLoggedIn]);
 
+  // DTRADER_AUTH_READY is a one-time ping the iframe sends right after its own
+  // bootstrap finishes. If isLoggedIn was still false at that exact moment
+  // (AuthContext hadn't finished restoring the session from localStorage yet),
+  // sendAuth() was skipped above and never retried — the iframe stays in its
+  // logged-out/default state for the rest of that mount. Proactively resend
+  // once isLoggedIn actually settles to true, so a late-resolving session
+  // doesn't get missed.
+  useEffect(() => {
+    if (isLoggedIn) sendAuth();
+  }, [isLoggedIn, sendAuth]);
+
   // Always mount the iframe — no lock screen. If the main site isn't logged in,
   // dtrader simply won't receive a TRADEXPRO_AUTH message and stays in its own
   // default state until the user logs in on the main site.
