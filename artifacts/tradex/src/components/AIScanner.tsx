@@ -536,6 +536,17 @@ export default function AIScanner() {
               </div>
 
               <div className="px-4 space-y-4 pb-4">
+                {/* Risk disclaimer */}
+                <div
+                  data-testid="scanner-risk-disclaimer"
+                  className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2"
+                >
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                    ⚠ Trading involves risk of loss. Digit patterns shown are historical only and do not
+                    predict future outcomes. Trade with funds you can afford to lose.
+                  </p>
+                </div>
+
                 {/* Trade parameters */}
                 <div className="grid grid-cols-2 gap-3">
                   {[
@@ -664,6 +675,9 @@ export default function AIScanner() {
                   >
                     <p className="text-xs text-foreground font-medium">
                       Confirm: {lastResult.contractType === "DIGITOVER" ? "Over" : "Under"} {lastResult.barrier} on {lastResult.market}, stake ${stake || "0"}, {duration || "0"} tick(s)?
+                    </p>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                      This places a real trade with real funds and cannot be undone.
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       <button
