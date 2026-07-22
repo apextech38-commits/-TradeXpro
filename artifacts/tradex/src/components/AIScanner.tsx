@@ -47,6 +47,7 @@ interface ScannerTrade {
 export default function AIScanner() {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"ov1un8" | "ov2un7">("ov1un8");
+  const [view, setView] = useState<"scan" | "history">("scan");
   const [scanDepth, setScanDepth] = useState("3000");
   const [mode, setMode] = useState("01-08");
   const [ticks, setTicks] = useState("3000");
@@ -109,13 +110,14 @@ export default function AIScanner() {
               if (data.msg_type !== "proposal_open_contract") return;
               const poc = data.proposal_open_contract;
               if (!poc?.contract_id) return;
+              const numericProfit = poc.profit !== undefined ? Number(poc.profit) : NaN;
               setTrades((prev) =>
                 prev.map((t) =>
                   t.contractId === poc.contract_id
                     ? {
                         ...t,
-                        status: poc.is_sold ? (poc.profit >= 0 ? "won" : "lost") : "running",
-                        profit: poc.profit ?? t.profit,
+                        status: poc.is_sold ? (!Number.isNaN(numericProfit) && numericProfit >= 0 ? "won" : "lost") : "running",
+                        profit: Number.isNaN(numericProfit) ? t.profit : numericProfit,
                       }
                     : t
                 )
@@ -413,7 +415,7 @@ export default function AIScanner() {
               <div>
                 <h2 className="text-base font-bold text-foreground">Entry Scanner</h2>
                 <p data-testid="scanner-live-balance" className="text-xs text-muted-foreground mt-0.5">
-                  Balance: <span className="font-semibold text-foreground">{balance !== null ? `${balance.toFixed(2)} ${currency}` : "—"}</span>
+                  Balance: <span className="font-semibold text-foreground">{balance !== null && !Number.isNaN(Number(balance)) ? `${Number(balance).toFixed(2)} ${currency}` : "—"}</span>
                 </p>
               </div>
               <button
@@ -482,6 +484,39 @@ export default function AIScanner() {
                 )}
               </div>
 
+              {/* Scanner / History top-level tabs */}
+              <div className="flex gap-2 mx-4 mb-4">
+                <button
+                  onClick={() => setView("scan")}
+                  data-testid="scanner-view-scan"
+                  className={`flex-1 py-2 text-sm font-bold rounded-lg border transition-all ${
+                    view === "scan"
+                      ? "bg-primary border-primary text-white shadow-sm"
+                      : "bg-secondary border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Scanner
+                </button>
+                <button
+                  onClick={() => setView("history")}
+                  data-testid="scanner-view-history"
+                  className={`flex-1 py-2 text-sm font-bold rounded-lg border transition-all flex items-center justify-center gap-1.5 ${
+                    view === "history"
+                      ? "bg-primary border-primary text-white shadow-sm"
+                      : "bg-secondary border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  History
+                  {trades.length > 0 && (
+                    <span className={`text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center ${view === "history" ? "bg-white/25" : "bg-primary/20 text-primary"}`}>
+                      {trades.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {view === "scan" && (
+              <>
               {/* Tabs */}
               <div className="flex gap-2 mx-4 mb-4">
                 {(["ov1un8", "ov2un7"] as const).map(tab => (
@@ -660,12 +695,18 @@ export default function AIScanner() {
                     {tradeStatus}
                   </div>
                 )}
+              </div>
+              </>
+              )}
 
-                {/* Trade History */}
-                {trades.length > 0 && (
-                  <div className="space-y-2 pt-1">
-                    <p className="text-xs text-muted-foreground font-medium">Trade History</p>
-                    <div data-testid="scanner-trade-history" className="space-y-1.5 max-h-48 overflow-y-auto">
+              {view === "history" && (
+                <div className="px-4 pb-4 space-y-2">
+                  {trades.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-10">
+                      No trades yet — run a scan and load a trade to see it here.
+                    </p>
+                  ) : (
+                    <div data-testid="scanner-trade-history" className="space-y-1.5">
                       {trades.map((t) => {
                         const label = `${t.contractType === "DIGITOVER" ? "Over" : "Under"} ${t.barrier}`;
                         const statusStyles =
@@ -685,11 +726,15 @@ export default function AIScanner() {
                               <p className="text-[11px] text-muted-foreground">{label} · ${t.stake.toFixed(2)}</p>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                              {t.profit !== null && (
-                                <span className={`text-xs font-semibold ${t.profit >= 0 ? "text-[#22C55E]" : "text-red-500"}`}>
-                                  {t.profit >= 0 ? "+" : ""}{t.profit.toFixed(2)}
-                                </span>
-                              )}
+                              {(() => {
+                                const p = t.profit !== null ? Number(t.profit) : NaN;
+                                if (Number.isNaN(p)) return null;
+                                return (
+                                  <span className={`text-xs font-semibold ${p >= 0 ? "text-[#22C55E]" : "text-red-500"}`}>
+                                    {p >= 0 ? "+" : ""}{p.toFixed(2)}
+                                  </span>
+                                );
+                              })()}
                               <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${statusStyles} ${t.status === "running" ? "animate-pulse" : ""}`}>
                                 {t.status}
                               </span>
@@ -698,9 +743,9 @@ export default function AIScanner() {
                         );
                       })}
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
