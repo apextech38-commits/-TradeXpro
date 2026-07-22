@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/toaster";
 import Navbar from "@/components/Navbar";
 import BottomBar from "@/components/BottomBar";
 import AIScanner from "@/components/AIScanner";
+import RiskDisclaimer from "@/components/risk-disclaimer";
 import LoadingScreen from "@/components/LoadingScreen";
 import BotBuilderFrame from "@/pages/BotBuilderFrame";
 const Charts = lazy(() => import("@/pages/chart/chart"));
@@ -56,6 +57,7 @@ function AppContent() {
       </main>
       <BottomBar />
       <AIScanner />
+      <RiskDisclaimer />
     </div>
   );
 }
