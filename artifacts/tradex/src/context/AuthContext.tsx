@@ -165,6 +165,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshBalance]);
 
+  // The Manual Traders / Bot Builder iframes run their own independent WS
+  // session and can be authorized/trading even when this shell's own
+  // balance subscription has stalled. Trust the iframe's live balance
+  // pushes directly so the navbar never shows a stale/zero figure.
+  useEffect(() => {
+    const onBalanceBroadcast = (event: MessageEvent) => {
+      if (event.origin !== "https://dtrader.tradexpro.co.ke") return;
+      if (event.data?.type !== "BALANCE_UPDATE") return;
+      setBalance(event.data.balance ?? null);
+      setCurrency(event.data.currency || "USD");
+    };
+    window.addEventListener("message", onBalanceBroadcast);
+    return () => window.removeEventListener("message", onBalanceBroadcast);
+  }, []);
+
   const connect = useCallback((account: DerivAccount) => {
     if (wsRef.current) {
       // Null every handler, not just onclose — WebSocket.close() is async and
