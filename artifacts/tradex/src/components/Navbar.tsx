@@ -42,7 +42,7 @@ export default function Navbar() {
   const location = useLocation();
   const {
     isLoggedIn, isAuthorized, activeAccount, accounts,
-    balance, currency, wsConnected, login, signup, logout, switchAccount,
+    balance, currency, email, wsConnected, login, signup, logout, switchAccount,
   } = useAuth();
   const { theme, setTheme } = useTheme();
 
@@ -136,6 +136,14 @@ export default function Navbar() {
                         : <><WifiOff className="w-4 h-4 text-[#F59E0B]" /><span className="text-xs text-[#F59E0B] font-medium">Reconnecting...</span></>
                       }
                     </div>
+                    {email && (
+                      <div
+                        className="px-4 py-2 border-b border-[#E5E7EB] text-xs text-[#6B7280] truncate"
+                        title={email}
+                      >
+                        {email}
+                      </div>
+                    )}
                     {accounts.map(acct => (
                       <button
                         key={acct.account}
