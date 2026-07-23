@@ -244,7 +244,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setWsConnected(true);
         setIsAuthorized(true);
         setActiveAccount(account);
-        ws.send(JSON.stringify({ authorize: account.token }));
         ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
         ws.send(JSON.stringify({ statement: 1, limit: 50 }));
         ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
@@ -266,14 +265,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           switch (msg.msg_type) {
             case "authorize":
-              // Purely cosmetic (shown in the account dropdown) — if this
-              // broker's backend doesn't return email here, we just never
-              // set it and the UI simply omits the row.
               if (msg.authorize?.email) setEmail(msg.authorize.email);
               break;
             case "balance":
               setBalance(msg.balance?.balance ?? null);
               setCurrency(msg.balance?.currency || "USD");
+              // This broker's balance responses can carry email directly --
+              // no separate authorize round-trip needed (and that separate
+              // call errors on an already-OTP-authenticated connection).
+              if (msg.balance?.email) setEmail(msg.balance.email);
               break;
             case "statement": {
               const txns: StatementTrade[] = (msg.statement?.transactions ?? [])
