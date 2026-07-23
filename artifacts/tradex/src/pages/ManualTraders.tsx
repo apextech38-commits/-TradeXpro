@@ -9,11 +9,18 @@ const ACCOUNTS_KEY = 'tradex-deriv-accounts'; // localStorage, set after OAuth
 
 export default function ManualTraders() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  // True only after the iframe's native 'load' event fires, i.e. it has
+  // actually navigated to DTRADER_URL. Before that it's still same-origin
+  // about:blank, and postMessage(data, DTRADER_URL) on that window throws
+  // every time (mismatched target vs actual recipient origin) — confirmed
+  // in the live console: "target origin provided (dtrader.tradexpro.co.ke)
+  // does not match the recipient window's origin (tradexpro.co.ke)".
+  const iframeLoadedRef = useRef(false);
   const { isLoggedIn, activeAccount, accounts, logout } = useAuth();
 
   const sendAuth = useCallback(() => {
     const iframe = iframeRef.current;
-    if (!iframe?.contentWindow) return;
+    if (!iframe?.contentWindow || !iframeLoadedRef.current) return;
 
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) return; // not logged in on main site — nothing to send
@@ -56,6 +63,7 @@ export default function ManualTraders() {
     };
 
     const handleLoad = () => {
+      iframeLoadedRef.current = true;
       if (isLoggedIn) sendAuth();
     };
 
@@ -71,6 +79,7 @@ export default function ManualTraders() {
   // main site logs out → tell the iframe to log out too (mirror in the other direction)
   useEffect(() => {
     if (isLoggedIn) return;
+    if (!iframeLoadedRef.current) return;
     iframeRef.current?.contentWindow?.postMessage({ type: 'AUTH_LOGOUT' }, DTRADER_URL);
   }, [isLoggedIn]);
 
