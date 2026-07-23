@@ -46,6 +46,11 @@ interface ScannerTrade {
 
 export default function AIScanner() {
   const [open, setOpen] = useState(false);
+  const [buttonPos, setButtonPos] = useState<{ left: number; top: number } | null>(null);
+  const isDragging = useRef(false);
+  const dragMoved = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const startPos = useRef({ left: 0, top: 0 });
   const [activeTab, setActiveTab] = useState<"ov1un8" | "ov2un7">("ov1un8");
   const [view, setView] = useState<"scan" | "history">("scan");
   const [scanDepth, setScanDepth] = useState("3000");
@@ -367,13 +372,51 @@ export default function AIScanner() {
     }, 20000);
   }, [scanning, ticks, analyzeResults]);
 
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    isDragging.current = true;
+    dragMoved.current = false;
+    dragStart.current = { x: event.clientX, y: event.clientY };
+    const rect = buttonRef.current?.getBoundingClientRect();
+    startPos.current = buttonPos ?? { left: rect?.left ?? 0, top: rect?.top ?? 0 };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!isDragging.current) return;
+    const deltaX = event.clientX - dragStart.current.x;
+    const deltaY = event.clientY - dragStart.current.y;
+    if (Math.sqrt(deltaX * deltaX + deltaY * deltaY) > 5) dragMoved.current = true;
+
+    const size = buttonRef.current?.offsetWidth ?? 56;
+    const nextLeft = Math.max(0, Math.min(window.innerWidth - size, startPos.current.left + deltaX));
+    const nextTop = Math.max(0, Math.min(window.innerHeight - size, startPos.current.top + deltaY));
+    setButtonPos({ left: nextLeft, top: nextTop });
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const handleButtonClick = () => {
+    if (!dragMoved.current) setOpen(true);
+  };
+
   return (
     <>
       {/* Floating AI Button */}
       <button
+        ref={buttonRef}
         data-testid="ai-scanner-button"
-        onClick={() => setOpen(true)}
-        className="group fixed bottom-[68px] right-4 z-50 w-14 h-14 flex items-center justify-center transition-transform duration-200 active:scale-90 hover:scale-110"
+        onClick={handleButtonClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        className="group fixed z-50 w-14 h-14 flex items-center justify-center transition-transform duration-200 active:scale-90 hover:scale-110"
+        style={buttonPos ? { left: buttonPos.left, top: buttonPos.top } : { bottom: 68, right: 16 }}
         aria-label="Open AI Scanner"
       >
         {/* Ambient glow */}
