@@ -7,7 +7,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import Navbar from "@/components/Navbar";
-import BottomBar from "@/components/BottomBar";
 import AIScanner from "@/components/AIScanner";
 import RiskDisclaimer from "@/components/risk-disclaimer/risk-disclaimer";
 import LoadingScreen from "@/components/LoadingScreen";
@@ -55,7 +54,6 @@ function AppContent() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
-      <BottomBar />
       <AIScanner />
       <RiskDisclaimer />
     </div>
