@@ -40,10 +40,14 @@
 // position:absolute + vertical centering -- horizontal centering and
 // stacking above the backdrop above still need to be set here.
 .dc-modal__container_risk-disclaimer-modal {
+    position: fixed !important;
+    top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) !important;
     z-index: 9999;
     max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
 }
 
 .risk-disclaimer-modal {
