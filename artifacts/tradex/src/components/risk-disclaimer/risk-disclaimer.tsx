@@ -1,179 +1,133 @@
-import React, { useEffect, useRef, useState } from 'react';
-import Button from '@/components/shared_ui/button';
-import Modal from '@/components/shared_ui/modal';
-import Text from '@/components/shared_ui/text';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { localize } from '@deriv-com/translations';
 import './risk-disclaimer.scss';
 
 const SESSION_STORAGE_KEY = 'riskDisclaimerHidden';
 
-const RiskDisclaimer = () => {
-    const [isModalOpen, setIsModalOpen] = useState(false);
+// Rendered via createPortal straight into document.body. Every previous
+// version of this component rendered in-place wherever <RiskDisclaimer />
+// happened to sit in the app's own DOM tree, and relied on the shared
+// Modal component's position:absolute centering. That centering resolves
+// against the nearest *positioned* ancestor -- not necessarily the
+// viewport -- so depending on which page it was mounted under, the dialog
+// could center itself relative to some unrelated ancestor box and land
+// off-screen, while the (correctly fixed-position) backdrop still covered
+// the viewport. Net effect: a dark overlay with nothing visible in it.
+// A portal to document.body sidesteps all of that -- this component now
+// has no positioned ancestor to inherit a broken containing block from,
+// and no dependency on any other component's CSS classes at all.
+const RiskDisclaimer: React.FC = () => {
+    const [isOpen, setIsOpen] = useState(false);
     const [isHidden, setIsHidden] = useState(false);
-    const [position, setPosition] = useState({ left: 20, top: window?.innerHeight ? window.innerHeight - 80 : 20 });
-    const isDragging = useRef(false);
-    const dragMoved = useRef(false);
-    const dragStart = useRef({ x: 0, y: 0 });
-    const startPosition = useRef({ left: 20, top: 20 });
 
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const hidden = sessionStorage.getItem(SESSION_STORAGE_KEY) === 'true';
-            setIsHidden(hidden);
-            startPosition.current = { left: 20, top: window.innerHeight - 80 };
-            setPosition(startPosition.current);
-        }
+        if (sessionStorage.getItem(SESSION_STORAGE_KEY) === 'true') setIsHidden(true);
     }, []);
 
-    const handleOpenModal = () => {
-        setIsModalOpen(true);
-    };
+    useEffect(() => {
+        if (!isOpen) return undefined;
 
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-    };
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
 
-    const handleUnderstand = () => {
-        setIsModalOpen(false);
-    };
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setIsOpen(false);
+        };
+        window.addEventListener('keydown', onKeyDown);
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener('keydown', onKeyDown);
+        };
+    }, [isOpen]);
 
     const handleDontShowAgain = () => {
-        if (typeof window !== 'undefined') {
-            sessionStorage.setItem(SESSION_STORAGE_KEY, 'true');
-        }
+        sessionStorage.setItem(SESSION_STORAGE_KEY, 'true');
         setIsHidden(true);
-        setIsModalOpen(false);
+        setIsOpen(false);
     };
 
-    const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-        isDragging.current = true;
-        dragMoved.current = false;
-        dragStart.current = { x: event.clientX, y: event.clientY };
-        startPosition.current = { ...position };
-        event.currentTarget.setPointerCapture(event.pointerId);
-    };
+    if (isHidden) return null;
 
-    const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-        if (!isDragging.current) return;
-
-        const deltaX = event.clientX - dragStart.current.x;
-        const deltaY = event.clientY - dragStart.current.y;
-        const movement = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-        if (movement > 5) {
-            dragMoved.current = true;
-        }
-
-        const nextLeft = Math.max(0, Math.min(window.innerWidth - 180, startPosition.current.left + deltaX));
-        const nextTop = Math.max(0, Math.min(window.innerHeight - 60, startPosition.current.top + deltaY));
-
-        setPosition({ left: nextLeft, top: nextTop });
-    };
-
-    const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-        if (!isDragging.current) return;
-        isDragging.current = false;
-        event.currentTarget.releasePointerCapture(event.pointerId);
-    };
-
-    const handleWrapperClick = () => {
-        if (!dragMoved.current) {
-            handleOpenModal();
-        }
-    };
-
-    if (isHidden) {
-        return null;
-    }
-
-    return (
+    return createPortal(
         <>
-            {/* Floating Risk Disclaimer Button */}
-            <div
-                className='risk-disclaimer-button'
-                style={{ left: position.left, top: position.top }}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onClick={handleWrapperClick}
+            <button
+                type='button'
+                className='risk-disclaimer-trigger'
+                onClick={() => setIsOpen(true)}
             >
-                <Button className='risk-disclaimer-button__btn' onClick={handleOpenModal} type='button' secondary small>
-                    {localize('Risk Disclaimer')}
-                </Button>
-            </div>
+                {localize('Risk Disclaimer')}
+            </button>
 
-            {/* Backdrop -- Modal itself doesn't render one; without this the
-                container isn't fixed/centered at all and just drops into
-                normal document flow after the app's own content. */}
-            {isModalOpen && (
-                <div className='risk-disclaimer-backdrop' onClick={handleCloseModal} />
-            )}
+            {isOpen && (
+                <div
+                    className='risk-disclaimer-overlay'
+                    onClick={() => setIsOpen(false)}
+                >
+                    <div
+                        className='risk-disclaimer-dialog'
+                        role='dialog'
+                        aria-modal='true'
+                        aria-labelledby='risk-disclaimer-title'
+                        onClick={event => event.stopPropagation()}
+                    >
+                        <button
+                            type='button'
+                            className='risk-disclaimer-dialog__close'
+                            aria-label={localize('Close')}
+                            onClick={() => setIsOpen(false)}
+                        >
+                            &times;
+                        </button>
 
-            {/* Risk Disclaimer Modal */}
-            <Modal
-                is_open={isModalOpen}
-                is_vertical_centered
-                title={localize('Risk Disclaimer')}
-                toggleModal={handleCloseModal}
-                width='520px'
-                className='risk-disclaimer-modal'
-            >
-                <div className='risk-disclaimer-modal__content'>
-                    <Text size='s' color='prominent' weight='bold' className='risk-disclaimer-modal__title'>
-                        {localize('Important Risk Warning')}
-                    </Text>
+                        <h2 id='risk-disclaimer-title' className='risk-disclaimer-dialog__title'>
+                            {localize('Important Risk Warning')}
+                        </h2>
 
-                    <Text size='xs' color='general' className='risk-disclaimer-modal__text'>
-                        {localize(
-                            'Deriv offers complex derivatives, such as options and contracts for difference ("CFDs"). These products are complex and may not be suitable for all clients. Trading them carries risk, and you should understand the risks before trading.'
-                        )}
-                    </Text>
+                        <p className='risk-disclaimer-dialog__text'>
+                            {localize(
+                                'Deriv offers complex derivatives, such as options and contracts for difference ("CFDs"). These products are complex and may not be suitable for all clients. Trading them carries risk, and you should understand the risks before trading.'
+                            )}
+                        </p>
 
-                    <div className='risk-disclaimer-modal__points'>
-                        <div className='risk-disclaimer-modal__point'>
-                            <span>•</span>
-                            <Text size='xs' color='general'>
-                                {localize('You may lose some or all of the money you invest in a trade.')}
-                            </Text>
-                        </div>
-                        <div className='risk-disclaimer-modal__point'>
-                            <span>•</span>
-                            <Text size='xs' color='general'>
+                        <ul className='risk-disclaimer-dialog__points'>
+                            <li>{localize('You may lose some or all of the money you invest in a trade.')}</li>
+                            <li>
                                 {localize(
                                     'If your trade involves currency conversion, exchange rates will affect your profit and loss.'
                                 )}
-                            </Text>
-                        </div>
-                        <div className='risk-disclaimer-modal__point'>
-                            <span>•</span>
-                            <Text size='xs' color='general'>
-                                {localize(
-                                    'You should never trade with borrowed money or with funds you cannot afford to lose.'
-                                )}
-                            </Text>
-                        </div>
-                    </div>
+                            </li>
+                            <li>
+                                {localize('You should never trade with borrowed money or with funds you cannot afford to lose.')}
+                            </li>
+                        </ul>
 
-                    <Text size='xs' color='general' className='risk-disclaimer-modal__footer'>
-                        {localize('Always trade responsibly and only with money that you can afford to lose.')}
-                    </Text>
+                        <p className='risk-disclaimer-dialog__footer'>
+                            {localize('Always trade responsibly and only with money that you can afford to lose.')}
+                        </p>
 
-                    <div className='risk-disclaimer-modal__actions'>
-                        <Button className='risk-disclaimer-modal__understand-btn' onClick={handleUnderstand} type='button' primary>
-                            {localize('I Understand')}
-                        </Button>
-                        <Button
-                            className='risk-disclaimer-modal__dont-show-btn'
-                            onClick={handleDontShowAgain}
-                            type='button'
-                            secondary
-                        >
-                            {localize("Don't Show Again")}
-                        </Button>
+                        <div className='risk-disclaimer-dialog__actions'>
+                            <button
+                                type='button'
+                                className='risk-disclaimer-dialog__btn risk-disclaimer-dialog__btn--primary'
+                                onClick={() => setIsOpen(false)}
+                            >
+                                {localize('I Understand')}
+                            </button>
+                            <button
+                                type='button'
+                                className='risk-disclaimer-dialog__btn risk-disclaimer-dialog__btn--secondary'
+                                onClick={handleDontShowAgain}
+                            >
+                                {localize("Don't Show Again")}
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </Modal>
-        </>
+            )}
+        </>,
+        document.body
     );
 };
 
