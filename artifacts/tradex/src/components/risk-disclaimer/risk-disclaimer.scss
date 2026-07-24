@@ -28,6 +28,24 @@
     }
 }
 
+.risk-disclaimer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9998;
+}
+
+// Modal.tsx builds this exact class from the className prop we pass it
+// (`dc-modal__container_${className}`). is_vertical_centered only gives it
+// position:absolute + vertical centering -- horizontal centering and
+// stacking above the backdrop above still need to be set here.
+.dc-modal__container_risk-disclaimer-modal {
+    left: 50%;
+    transform: translate(-50%, -50%) !important;
+    z-index: 9999;
+    max-width: calc(100vw - 32px);
+}
+
 .risk-disclaimer-modal {
     &__content {
         padding: 24px;

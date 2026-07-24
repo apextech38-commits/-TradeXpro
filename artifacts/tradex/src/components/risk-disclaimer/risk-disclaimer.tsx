@@ -102,11 +102,19 @@ const RiskDisclaimer = () => {
                 </Button>
             </div>
 
+            {/* Backdrop -- Modal itself doesn't render one; without this the
+                container isn't fixed/centered at all and just drops into
+                normal document flow after the app's own content. */}
+            {isModalOpen && (
+                <div className='risk-disclaimer-backdrop' onClick={handleCloseModal} />
+            )}
+
             {/* Risk Disclaimer Modal */}
             <Modal
                 is_open={isModalOpen}
+                is_vertical_centered
                 title={localize('Risk Disclaimer')}
-                onClose={handleCloseModal}
+                toggleModal={handleCloseModal}
                 width='520px'
                 className='risk-disclaimer-modal'
             >
