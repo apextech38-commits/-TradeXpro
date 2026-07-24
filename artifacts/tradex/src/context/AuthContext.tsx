@@ -245,6 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsAuthorized(true);
         setActiveAccount(account);
         ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+        ws.send(JSON.stringify({ get_settings: 1 })); // for email — see msg_type "get_settings" below
         ws.send(JSON.stringify({ statement: 1, limit: 50 }));
         ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
         ws.send(JSON.stringify({ ticks: "R_10", subscribe: 1 }));
@@ -256,24 +257,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const msg = JSON.parse(event.data);
           if (msg.error) {
-            if (msg.msg_type === "authorize") {
-              ErrorLogger.warn("AuthContext", "authorize (email) request returned an error", {
+            if (msg.msg_type === "get_settings") {
+              ErrorLogger.warn("AuthContext", "get_settings (email) request returned an error", {
                 error: msg.error,
               });
             }
             return;
           }
           switch (msg.msg_type) {
-            case "authorize":
-              if (msg.authorize?.email) setEmail(msg.authorize.email);
+            case "get_settings":
+              // Standard Deriv endpoint for account profile info (email,
+              // country, etc). Unlike an explicit `authorize` call, this
+              // doesn't try to re-authenticate the session, so it doesn't
+              // hit the "already authorized" error a second `authorize`
+              // request gets on this OTP-authenticated connection.
+              if (msg.get_settings?.email) setEmail(msg.get_settings.email);
               break;
             case "balance":
               setBalance(msg.balance?.balance ?? null);
               setCurrency(msg.balance?.currency || "USD");
-              // This broker's balance responses can carry email directly --
-              // no separate authorize round-trip needed (and that separate
-              // call errors on an already-OTP-authenticated connection).
-              if (msg.balance?.email) setEmail(msg.balance.email);
               break;
             case "statement": {
               const txns: StatementTrade[] = (msg.statement?.transactions ?? [])
