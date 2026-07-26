@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { localize } from '@deriv-com/translations';
 import './risk-disclaimer.scss';
 
 const SESSION_STORAGE_KEY = 'riskDisclaimerHidden';
@@ -13,10 +12,17 @@ const SESSION_STORAGE_KEY = 'riskDisclaimerHidden';
 // viewport -- so depending on which page it was mounted under, the dialog
 // could center itself relative to some unrelated ancestor box and land
 // off-screen, while the (correctly fixed-position) backdrop still covered
-// the viewport. Net effect: a dark overlay with nothing visible in it.
-// A portal to document.body sidesteps all of that -- this component now
-// has no positioned ancestor to inherit a broken containing block from,
-// and no dependency on any other component's CSS classes at all.
+// the viewport. A portal to document.body sidesteps all of that.
+//
+// Also deliberately NOT using localize() from @deriv-com/translations here.
+// App.tsx (where this mounts) has no TranslationProvider/I18nextProvider
+// anywhere above it in the tree -- every other localize() usage in this
+// codebase lives deep inside the legacy BotBuilder subsystem, which sets
+// up its own i18n context internally further down. Without that context,
+// localize() calls at this mount point were very likely returning empty
+// strings, not just rendering invisible text -- which matches the "still
+// blank" report even after the color fix. Plain strings sidestep that
+// dependency entirely, consistent with this component being self-contained.
 const RiskDisclaimer: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [isHidden, setIsHidden] = useState(false);
@@ -57,7 +63,7 @@ const RiskDisclaimer: React.FC = () => {
                 className='risk-disclaimer-trigger'
                 onClick={() => setIsOpen(true)}
             >
-                {localize('Risk Disclaimer')}
+                Risk Disclaimer
             </button>
 
             {isOpen && (
@@ -75,36 +81,37 @@ const RiskDisclaimer: React.FC = () => {
                         <button
                             type='button'
                             className='risk-disclaimer-dialog__close'
-                            aria-label={localize('Close')}
+                            aria-label='Close'
                             onClick={() => setIsOpen(false)}
                         >
                             &times;
                         </button>
 
                         <h2 id='risk-disclaimer-title' className='risk-disclaimer-dialog__title'>
-                            {localize('Important Risk Warning')}
+                            Important Risk Warning
                         </h2>
 
                         <p className='risk-disclaimer-dialog__text'>
-                            {localize(
-                                'Deriv offers complex derivatives, such as options and contracts for difference ("CFDs"). These products are complex and may not be suitable for all clients. Trading them carries risk, and you should understand the risks before trading.'
-                            )}
+                            Deriv offers complex derivatives, such as options and contracts for difference
+                            (&quot;CFDs&quot;). These products are complex and may not be suitable for all
+                            clients. Trading them carries risk, and you should understand the risks before
+                            trading.
                         </p>
 
                         <ul className='risk-disclaimer-dialog__points'>
-                            <li>{localize('You may lose some or all of the money you invest in a trade.')}</li>
+                            <li>You may lose some or all of the money you invest in a trade.</li>
                             <li>
-                                {localize(
-                                    'If your trade involves currency conversion, exchange rates will affect your profit and loss.'
-                                )}
+                                If your trade involves currency conversion, exchange rates will affect your
+                                profit and loss.
                             </li>
                             <li>
-                                {localize('You should never trade with borrowed money or with funds you cannot afford to lose.')}
+                                You should never trade with borrowed money or with funds you cannot afford
+                                to lose.
                             </li>
                         </ul>
 
                         <p className='risk-disclaimer-dialog__footer'>
-                            {localize('Always trade responsibly and only with money that you can afford to lose.')}
+                            Always trade responsibly and only with money that you can afford to lose.
                         </p>
 
                         <div className='risk-disclaimer-dialog__actions'>
@@ -113,14 +120,14 @@ const RiskDisclaimer: React.FC = () => {
                                 className='risk-disclaimer-dialog__btn risk-disclaimer-dialog__btn--primary'
                                 onClick={() => setIsOpen(false)}
                             >
-                                {localize('I Understand')}
+                                I Understand
                             </button>
                             <button
                                 type='button'
                                 className='risk-disclaimer-dialog__btn risk-disclaimer-dialog__btn--secondary'
                                 onClick={handleDontShowAgain}
                             >
-                                {localize("Don't Show Again")}
+                                Don&apos;t Show Again
                             </button>
                         </div>
                     </div>
