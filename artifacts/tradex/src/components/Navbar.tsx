@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   Menu, ChevronDown, LogOut, User, Wifi, WifiOff,
   LayoutDashboard, Bot, TrendingUp, CandlestickChart,
-  Cpu, BarChart2, Target, Users, Monitor, Moon, Sun,
+  Cpu, BarChart2, Target, Users, Monitor, Moon, Sun, Layers3,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "./ThemeProvider";
@@ -12,7 +12,7 @@ import CashierModal from "./CashierModal";
 interface TabDef { label: string; Icon: React.ComponentType<{ className?: string }>; route: string; }
 
 export const TABS = [
-  "Dashboard", "Bot Builder", "Manual Traders", "Charts",
+  "Dashboard", "Bot Builder", "Manual Traders", "Bulk Trader", "Charts",
   "Trading Bots", "Analysis Tool", "Strategies", "Copy Trading", "TradingView",
 ];
 
@@ -20,6 +20,7 @@ const TAB_ICONS: TabDef[] = [
   { label: "Dashboard",     Icon: LayoutDashboard, route: "/dashboard" },
   { label: "Bot Builder",   Icon: Bot,             route: "/botbuilder" },
   { label: "Manual Traders",Icon: TrendingUp,      route: "/manualtraders" },
+  { label: "Bulk Trader",   Icon: Layers3,         route: "/bulktrader" },
   { label: "Charts",        Icon: CandlestickChart,route: "/charts" },
   { label: "Trading Bots",  Icon: Cpu,             route: "/tradingbots" },
   { label: "Analysis Tool", Icon: BarChart2,       route: "/analysistool" },

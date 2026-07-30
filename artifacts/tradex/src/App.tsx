@@ -17,6 +17,7 @@ import { useState } from "react";
 import Dashboard from "@/pages/Dashboard";
 
 import ManualTraders from "@/pages/ManualTraders";
+import BulkTrader from "@/pages/BulkTrader/BulkTrader";
 
 import TradingBots from "@/pages/TradingBots";
 import AnalysisTool from "@/pages/AnalysisTool";
@@ -45,6 +46,7 @@ function AppContent() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/botbuilder" element={<BotBuilderFrame />} />
           <Route path="/manualtraders" element={<ManualTraders />} />
+          <Route path="/bulktrader" element={<BulkTrader />} />
           <Route path="/charts" element={<ChartsEmbed />} />
           <Route path="/tradingbots" element={<TradingBots />} />
           <Route path="/analysistool" element={<AnalysisTool />} />

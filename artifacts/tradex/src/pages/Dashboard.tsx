@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   Wifi, WifiOff, LogIn, Clock, TrendingUp, TrendingDown,
-  Bot, BarChart2, Brain, Layers, Users, Zap, Eye, ArrowRight,
+  Bot, BarChart2, Brain, Layers, Layers3, Users, Zap, Eye, ArrowRight,
 } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { useAuth } from "@/context/AuthContext";
@@ -40,6 +40,16 @@ const FEATURES = [
     icon: TrendingUp,
     title: "Manual Traders",
     desc: "Trade Accumulators, Rise/Fall, Multipliers and 6 more contract types with live charts.",
+    color: "#22C55E",
+    bg: "bg-[#22C55E]/10",
+    border: "border-[#22C55E]/30",
+    highlight: false,
+  },
+  {
+    id: "Bulk Trader",
+    icon: Layers3,
+    title: "Bulk Trader",
+    desc: "Run a batch of Even/Odd trades back to back, with live digit stats and an optional Auto Trader.",
     color: "#22C55E",
     bg: "bg-[#22C55E]/10",
     border: "border-[#22C55E]/30",
