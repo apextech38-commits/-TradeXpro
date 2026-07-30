@@ -58,6 +58,16 @@ const normalizeParameters = (parameters: TTradeParameters) => {
 const ensureAuthorizedForTrading = async () => {
     if (api_base.is_authorized) return;
 
+    // api_base.authorizeAndSubscribe() silently no-ops if the underlying
+    // connection (api_base.api) was never created - which normally only
+    // happens as a side effect of Bot Builder's own boot sequence. Pages
+    // that never visit Bot Builder first (Bulk Trader, manual-trading,
+    // auto-trades) would otherwise stay permanently "unauthorized" here
+    // regardless of the real, correct login state in AuthContext.
+    if (!(api_base as any).api) {
+        await (api_base as any).init?.();
+    }
+
     await (api_base as any).authorizeAndSubscribe?.();
 
     if (!api_base.is_authorized) {

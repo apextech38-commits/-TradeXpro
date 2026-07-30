@@ -38,7 +38,13 @@ export default function DigitWheel({ digit, percentage, isLastDigit, isHighest, 
           <span className="text-[10px] text-muted-foreground">{percentage.toFixed(1)}%</span>
         </div>
         {isLastDigit && (
-          <span className="absolute -bottom-1 w-2 h-2 rounded-full bg-primary ring-2 ring-background" />
+          <svg
+            viewBox="0 0 10 8"
+            className="absolute -bottom-2 w-2.5 h-2 text-primary"
+            fill="currentColor"
+          >
+            <path d="M5 8 L0 0 L10 0 Z" />
+          </svg>
         )}
       </div>
       <span
