@@ -25,6 +25,7 @@ export default function BulkTrader() {
   const { isLoggedIn, currency } = useAuth();
 
   const [symbol, setSymbol] = useState("R_100");
+  const [tradeType, setTradeType] = useState<"even-odd" | "over-under" | "matches-differs">("even-odd");
   const [lookbackInput, setLookbackInput] = useState("120");
   const [ticksInput, setTicksInput] = useState("1");
   const [stakeInput, setStakeInput] = useState("0.5");
@@ -115,9 +116,20 @@ export default function BulkTrader() {
 
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trade Type</label>
-              <div className="h-10 flex items-center rounded-md border border-border bg-background px-3 text-sm text-foreground">
-                Even / Odd
-              </div>
+              <select
+                value={tradeType}
+                onChange={e => setTradeType(e.target.value as typeof tradeType)}
+                disabled={runner.isRunning}
+                className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"
+              >
+                <option value="even-odd">Even / Odd</option>
+                <option value="over-under" disabled>
+                  Over / Under (coming soon)
+                </option>
+                <option value="matches-differs" disabled>
+                  Matches / Differs (coming soon)
+                </option>
+              </select>
             </div>
           </div>
 

@@ -142,6 +142,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
 
+  // Bridge to bot-skeleton's own (separate, vendored) auth system. Its
+  // api_base.getToken() reads localStorage['active_loginid'] +
+  // localStorage['accountsList'] (a {loginid: token} map) directly - it has
+  // no idea this AuthContext exists. Without this, buyContractForUi throws
+  // "please log in" on any page using it (Bulk Trader, manual-trading.tsx,
+  // auto-trades.tsx) regardless of the real, correct login state above,
+  // unless bot-skeleton happened to already be initialized by a previous
+  // visit to Bot Builder in the same session.
+  useEffect(() => {
+    if (!activeAccount || accounts.length === 0) return;
+    try {
+      localStorage.setItem("active_loginid", activeAccount.account);
+      const accountsMap: Record<string, string> = {};
+      accounts.forEach(acc => {
+        accountsMap[acc.account] = acc.token;
+      });
+      localStorage.setItem("accountsList", JSON.stringify(accountsMap));
+    } catch {
+      // localStorage unavailable (private mode, quota, etc.) - non-fatal,
+      // buyContractForUi will surface its own "please log in" if this
+      // silently fails, same as before this bridge existed.
+    }
+  }, [activeAccount, accounts]);
+
   const sendWS = useCallback((msg: object) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(msg));
