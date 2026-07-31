@@ -144,6 +144,7 @@ export const buyContractForUi = async ({ parameters, price, source }: TBuyContra
                 id: 'contract.purchase_received',
                 data: buy.transaction_id,
                 buy,
+                source,
             });
 
             return buy;
@@ -177,6 +178,7 @@ export const buyContractForUi = async ({ parameters, price, source }: TBuyContra
         id: 'contract.purchase_received',
         data: buy.transaction_id,
         buy,
+        source,
     });
 
     return buy;
@@ -240,13 +242,14 @@ export const getContractSnapshot = (contract: Record<string, any>, fallback: Rec
     };
 };
 
-export const emitContractSoldStatus = (contract: Record<string, any>) => {
+export const emitContractSoldStatus = (contract: Record<string, any>, source?: string) => {
     if (!contract?.is_sold) return;
 
     globalObserver.emit('contract.status', {
         id: 'contract.sold',
         data: contract.transaction_ids?.sell,
         contract,
+        source,
     });
 };
 
@@ -368,7 +371,7 @@ export const streamContractUntilSettled = ({
             onUpdate?.(snapshot, contract);
 
             if (snapshot.is_sold) {
-                emitContractSoldStatus(snapshot);
+                emitContractSoldStatus(snapshot, source);
                 finish(snapshot);
             }
         };
@@ -409,7 +412,7 @@ export const streamContractUntilSettled = ({
                 const snapshot = getProfitTableContractSnapshot(transaction, fallback);
                 if (snapshot.is_sold) {
                     onUpdate?.(snapshot, transaction);
-                    emitContractSoldStatus(snapshot);
+                    emitContractSoldStatus(snapshot, source);
                     finish(snapshot);
                 }
             } catch (profitTableError) {
