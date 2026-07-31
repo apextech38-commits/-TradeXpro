@@ -12,7 +12,7 @@ import CashierModal from "./CashierModal";
 interface TabDef { label: string; Icon: React.ComponentType<{ className?: string }>; route: string; }
 
 export const TABS = [
-  "Dashboard", "Bot Builder", "Manual Traders", "Bulk Trader", "Charts",
+  "Dashboard", "Bot Builder", "Manual Traders", "Bulk Trader", "DTrader (Compare)", "Charts",
   "Trading Bots", "Analysis Tool", "Strategies", "Copy Trading", "TradingView",
 ];
 
@@ -21,6 +21,7 @@ const TAB_ICONS: TabDef[] = [
   { label: "Bot Builder",   Icon: Bot,             route: "/botbuilder" },
   { label: "Manual Traders",Icon: TrendingUp,      route: "/manualtraders" },
   { label: "Bulk Trader",   Icon: Layers3,         route: "/bulktrader" },
+  { label: "DTrader (Compare)", Icon: CandlestickChart, route: "/dtrader-compare" },
   { label: "Charts",        Icon: CandlestickChart,route: "/charts" },
   { label: "Trading Bots",  Icon: Cpu,             route: "/tradingbots" },
   { label: "Analysis Tool", Icon: BarChart2,       route: "/analysistool" },
