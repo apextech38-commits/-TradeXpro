@@ -3,7 +3,7 @@ import { buyContractForUi, streamContractUntilSettled } from '@/utils/trade-purc
 
 const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public`;
 
-export type TDigitDirection = 'DIGITEVEN' | 'DIGITODD';
+export type TDigitDirection = 'DIGITEVEN' | 'DIGITODD' | 'DIGITOVER' | 'DIGITUNDER' | 'DIGITMATCH' | 'DIGITDIFF';
 
 export interface BulkTradeRecord {
     id: string;
@@ -20,6 +20,8 @@ export interface BulkRunnerConfig {
     stake: number;
     ticksDuration: number;
     bulkCount: number;
+    /** Required for DIGITOVER/DIGITUNDER/DIGITMATCH/DIGITDIFF, ignored for DIGITEVEN/DIGITODD */
+    barrier?: number;
     /** Auto Trader only: stop once total net profit reaches this. undefined = no target */
     profitTarget?: number;
     /** Auto Trader only: re-evaluate direction each trade instead of using a fixed one */
@@ -173,6 +175,15 @@ export function useBulkTrading(config: BulkRunnerConfig): UseBulkTradingResult {
                         duration_unit: 't',
                         symbol: cfg.symbol,
                     };
+                    if (
+                        (direction === 'DIGITOVER' ||
+                            direction === 'DIGITUNDER' ||
+                            direction === 'DIGITMATCH' ||
+                            direction === 'DIGITDIFF') &&
+                        cfg.barrier !== undefined
+                    ) {
+                        parameters.barrier = cfg.barrier;
+                    }
 
                     try {
                         const buy = await buyContractForUi({

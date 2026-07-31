@@ -23,10 +23,29 @@ const MARKETS = [
   { label: "Volatility 100 Index", symbol: "R_100" },
 ];
 
+const DIRECTION_LABELS: Record<TDigitDirection, string> = {
+  DIGITEVEN: "Even",
+  DIGITODD: "Odd",
+  DIGITOVER: "Over",
+  DIGITUNDER: "Under",
+  DIGITMATCH: "Matches",
+  DIGITDIFF: "Differs",
+};
+
+type TradeTypeGroup = "evenodd" | "overunder" | "matchdiffer";
+
+const TRADE_TYPE_OPTIONS: { value: TradeTypeGroup; label: string }[] = [
+  { value: "evenodd", label: "Even/Odd" },
+  { value: "overunder", label: "Over/Under" },
+  { value: "matchdiffer", label: "Matches/Differs" },
+];
+
 export default function BulkTrader() {
   const { isLoggedIn, currency } = useAuth();
 
   const [symbol, setSymbol] = useState("R_100");
+  const [tradeType, setTradeType] = useState<TradeTypeGroup>("evenodd");
+  const [barrierDigit, setBarrierDigit] = useState(5);
   const [lookbackInput, setLookbackInput] = useState("120");
   const [ticksInput, setTicksInput] = useState("1");
   const [stakeInput, setStakeInput] = useState("0.5");
@@ -56,6 +75,21 @@ export default function BulkTrader() {
   );
   const oddPct = 100 - evenPct;
 
+  const overPct = useMemo(
+    () => digitStats.filter(d => d.digit > barrierDigit).reduce((sum, d) => sum + d.percentage, 0),
+    [digitStats, barrierDigit]
+  );
+  const underPct = useMemo(
+    () => digitStats.filter(d => d.digit < barrierDigit).reduce((sum, d) => sum + d.percentage, 0),
+    [digitStats, barrierDigit]
+  );
+
+  const matchPct = useMemo(
+    () => digitStats.find(d => d.digit === barrierDigit)?.percentage ?? 0,
+    [digitStats, barrierDigit]
+  );
+  const differPct = 100 - matchPct;
+
   const highestDigit = useMemo(
     () => digitStats.reduce((best, d) => (d.percentage > best.percentage ? d : best), digitStats[0]),
     [digitStats]
@@ -65,7 +99,34 @@ export default function BulkTrader() {
     [digitStats]
   );
 
-  const getAutoDirection = (): TDigitDirection => (evenPct >= oddPct ? "DIGITEVEN" : "DIGITODD");
+  // The two tradeable sides for whichever trade type is currently selected --
+  // drives the buy buttons, Auto Trader's direction pick, and the barrier
+  // requirement, all from one place instead of three separate switches.
+  const sides = useMemo(() => {
+    switch (tradeType) {
+      case "overunder":
+        return [
+          { direction: "DIGITOVER" as TDigitDirection, label: "Over", pct: overPct, color: "teal" as const },
+          { direction: "DIGITUNDER" as TDigitDirection, label: "Under", pct: underPct, color: "red" as const },
+        ];
+      case "matchdiffer":
+        return [
+          { direction: "DIGITMATCH" as TDigitDirection, label: "Matches", pct: matchPct, color: "teal" as const },
+          { direction: "DIGITDIFF" as TDigitDirection, label: "Differs", pct: differPct, color: "red" as const },
+        ];
+      case "evenodd":
+      default:
+        return [
+          { direction: "DIGITEVEN" as TDigitDirection, label: "Even", pct: evenPct, color: "teal" as const },
+          { direction: "DIGITODD" as TDigitDirection, label: "Odd", pct: oddPct, color: "red" as const },
+        ];
+    }
+  }, [tradeType, evenPct, oddPct, overPct, underPct, matchPct, differPct]);
+
+  const needsBarrier = tradeType !== "evenodd";
+
+  const getAutoDirection = (): TDigitDirection =>
+    sides[0].pct >= sides[1].pct ? sides[0].direction : sides[1].direction;
 
   const runner = useBulkTrading({
     symbol,
@@ -73,6 +134,7 @@ export default function BulkTrader() {
     stake,
     ticksDuration,
     bulkCount,
+    barrier: needsBarrier ? barrierDigit : undefined,
     profitTarget,
     isAuto: isAutoMode,
     getAutoDirection,
@@ -127,11 +189,40 @@ export default function BulkTrader() {
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trade Type</label>
-            <div className="h-10 flex items-center rounded-md border border-border bg-background px-3 text-sm text-foreground">
-              Even / Odd
-            </div>
+            <select
+              value={tradeType}
+              onChange={e => setTradeType(e.target.value as TradeTypeGroup)}
+              disabled={runner.isRunning}
+              className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"
+            >
+              {TRADE_TYPE_OPTIONS.map(t => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
+
+        {needsBarrier && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {tradeType === "matchdiffer" ? "Target Digit" : "Barrier Digit"} &mdash; tap a digit below or pick here
+            </label>
+            <select
+              value={barrierDigit}
+              onChange={e => setBarrierDigit(Number(e.target.value))}
+              disabled={runner.isRunning}
+              className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50 w-24"
+            >
+              {Array.from({ length: 10 }, (_, d) => d).map(d => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -178,8 +269,11 @@ export default function BulkTrader() {
               digit={d.digit}
               percentage={d.percentage}
               isLastDigit={lastDigit === d.digit}
-              isHighest={d.digit === highestDigit?.digit}
-              isLowest={d.digit === lowestDigit?.digit}
+              isHighest={!needsBarrier && d.digit === highestDigit?.digit}
+              isLowest={!needsBarrier && d.digit === lowestDigit?.digit}
+              isBarrier={needsBarrier && d.digit === barrierDigit}
+              showEvenOddBadge={tradeType === "evenodd"}
+              onClick={needsBarrier && !runner.isRunning ? () => setBarrierDigit(d.digit) : undefined}
             />
           ))}
         </div>
@@ -252,7 +346,8 @@ export default function BulkTrader() {
             <p className="text-xs text-muted-foreground">
               Auto Trader stops automatically after 3 losses in a row, once total profit reaches your target
               below, or after {bulkCount} trades &mdash; whichever comes first. Direction follows whichever side
-              (Even/Odd) has better odds as stats update, and you can stop it manually at any time.
+              ({sides[0].label}/{sides[1].label}) has better odds as stats update, and you can stop it manually at
+              any time.
             </p>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -291,24 +386,20 @@ export default function BulkTrader() {
         )}
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            type="button"
-            onClick={() => handleManualBuy("DIGITEVEN")}
-            disabled={!canTrade}
-            className="flex-1 flex items-center justify-between rounded-md bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-4 transition-colors"
-          >
-            <span className="font-semibold">Even</span>
-            <span className="text-sm font-medium">{evenPct.toFixed(1)}%</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleManualBuy("DIGITODD")}
-            disabled={!canTrade}
-            className="flex-1 flex items-center justify-between rounded-md bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-4 transition-colors"
-          >
-            <span className="font-semibold">Odd</span>
-            <span className="text-sm font-medium">{oddPct.toFixed(1)}%</span>
-          </button>
+          {sides.map(side => (
+            <button
+              key={side.direction}
+              type="button"
+              onClick={() => handleManualBuy(side.direction)}
+              disabled={!canTrade}
+              className={`flex-1 flex items-center justify-between rounded-md ${
+                side.color === "teal" ? "bg-teal-600 hover:bg-teal-700" : "bg-red-600 hover:bg-red-700"
+              } disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-4 transition-colors`}
+            >
+              <span className="font-semibold">{side.label}</span>
+              <span className="text-sm font-medium">{side.pct.toFixed(1)}%</span>
+            </button>
+          ))}
         </div>
 
         <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/20 p-4">
@@ -360,7 +451,7 @@ export default function BulkTrader() {
                 key={t.id}
                 className="flex items-center justify-between text-xs py-1.5 px-3 rounded-md bg-muted/20"
               >
-                <span className="text-muted-foreground">{t.direction === "DIGITEVEN" ? "Even" : "Odd"}</span>
+                <span className="text-muted-foreground">{DIRECTION_LABELS[t.direction]}</span>
                 <span className={t.isWin ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
                   {t.profit >= 0 ? "+" : ""}
                   {t.profit.toFixed(2)}
