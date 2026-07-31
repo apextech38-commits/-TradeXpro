@@ -40,6 +40,18 @@ export interface UseBulkTradingResult {
     consecutiveLosses: number;
     stopReason: string | null;
     lastError: string | null;
+    /** Currently placing a trade or waiting for it to settle -- distinct from
+     * isRunning, which stays true for the whole bulk sequence including the
+     * gap between trades while waiting for the next tick. */
+    isAwaitingResult: boolean;
+    /** True session totals: every trade placed since the page loaded (or
+     * since the last resetSession()), unaffected by start() being called
+     * again for the next run or the next single manual click. */
+    sessionTradesCompleted: number;
+    sessionWins: number;
+    sessionLosses: number;
+    sessionTotalProfit: number;
+    resetSession: () => void;
     start: (direction: TDigitDirection) => void;
     stop: () => void;
 }
@@ -70,6 +82,14 @@ export function useBulkTrading(config: BulkRunnerConfig): UseBulkTradingResult {
     const [consecutiveLosses, setConsecutiveLosses] = useState(0);
     const [stopReason, setStopReason] = useState<string | null>(null);
     const [lastError, setLastError] = useState<string | null>(null);
+    const [isAwaitingResult, setIsAwaitingResult] = useState(false);
+
+    // Session-wide totals, deliberately NOT reset by start() -- that's the
+    // whole point. Only resetSession() (an explicit user action) touches these.
+    const [sessionTradesCompleted, setSessionTradesCompleted] = useState(0);
+    const [sessionWins, setSessionWins] = useState(0);
+    const [sessionLosses, setSessionLosses] = useState(0);
+    const [sessionTotalProfit, setSessionTotalProfit] = useState(0);
 
     // Refs mirror the state above so the async run loop always reads the
     // latest values without needing to be re-created (and without stale
@@ -186,6 +206,7 @@ export function useBulkTrading(config: BulkRunnerConfig): UseBulkTradingResult {
                     }
 
                     try {
+                        setIsAwaitingResult(true);
                         const buy = await buyContractForUi({
                             parameters,
                             price: cfg.stake,
@@ -206,6 +227,7 @@ export function useBulkTrading(config: BulkRunnerConfig): UseBulkTradingResult {
                         });
 
                         if (isStale()) return;
+                        setIsAwaitingResult(false);
 
                         const profit = Number(settled.profit ?? 0);
                         const isWin = profit > 0;
@@ -236,6 +258,17 @@ export function useBulkTrading(config: BulkRunnerConfig): UseBulkTradingResult {
                         setTotalProfit(localProfit);
                         setConsecutiveLosses(localStreak);
 
+                        // Session totals accumulate independently of the run's own
+                        // counters above -- functional updates so they're correct
+                        // even if a previous run's trade is still settling.
+                        setSessionTradesCompleted(prev => prev + 1);
+                        setSessionTotalProfit(prev => prev + profit);
+                        if (isWin) {
+                            setSessionWins(prev => prev + 1);
+                        } else {
+                            setSessionLosses(prev => prev + 1);
+                        }
+
                         if (localStreak >= LOSS_STREAK_LIMIT) {
                             stop(`Stopped after ${LOSS_STREAK_LIMIT} consecutive losses`);
                             return;
@@ -257,6 +290,7 @@ export function useBulkTrading(config: BulkRunnerConfig): UseBulkTradingResult {
                         }
                     } catch (err) {
                         if (isStale()) return;
+                        setIsAwaitingResult(false);
                         setLastError(err instanceof Error ? err.message : 'Bulk Trader could not place this trade.');
                         stop('Stopped due to an error');
                         return;
@@ -271,6 +305,13 @@ export function useBulkTrading(config: BulkRunnerConfig): UseBulkTradingResult {
         },
         [stop, waitForNextTick]
     );
+
+    const resetSession = useCallback(() => {
+        setSessionTradesCompleted(0);
+        setSessionWins(0);
+        setSessionLosses(0);
+        setSessionTotalProfit(0);
+    }, []);
 
     // Stop any in-flight run loop on unmount by invalidating its token.
     useEffect(() => {
@@ -290,6 +331,12 @@ export function useBulkTrading(config: BulkRunnerConfig): UseBulkTradingResult {
         consecutiveLosses,
         stopReason,
         lastError,
+        isAwaitingResult,
+        sessionTradesCompleted,
+        sessionWins,
+        sessionLosses,
+        sessionTotalProfit,
+        resetSession,
         start,
         stop: () => stop('Stopped manually'),
     };

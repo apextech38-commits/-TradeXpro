@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Layers3, Settings2, StopCircle, Cpu } from "lucide-react";
+import { Layers3, Settings2, StopCircle, Cpu, Loader2, RotateCcw } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useDigitStats } from "@/hooks/useDigitStats";
 import { useBulkTrading, TDigitDirection } from "@/hooks/useBulkTrading";
@@ -397,15 +397,27 @@ export default function BulkTrader() {
               } disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-4 transition-colors`}
             >
               <span className="font-semibold">{side.label}</span>
-              <span className="text-sm font-medium">{side.pct.toFixed(1)}%</span>
+              {runner.isRunning && runner.isAwaitingResult ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <span className="text-sm font-medium">{side.pct.toFixed(1)}%</span>
+              )}
             </button>
           ))}
         </div>
 
         <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/20 p-4">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            {runner.isRunning ? (isAutoMode ? "Auto Trader Running" : "Bulk Run In Progress") : "Session Summary"}
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {runner.isRunning ? (isAutoMode ? "Auto Trader Running" : "Bulk Run In Progress") : "Last Run"}
+            </span>
+            {runner.isRunning && runner.isAwaitingResult && (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                Waiting for result&hellip;
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
             <div className="flex flex-col">
               <span className="text-muted-foreground text-xs">Trades</span>
@@ -436,6 +448,58 @@ export default function BulkTrader() {
               >
                 {runner.totalProfit >= 0 ? "+" : ""}
                 {runner.totalProfit.toFixed(2)} {currency || "USD"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/20 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Session Summary
+            </span>
+            <button
+              type="button"
+              onClick={runner.resetSession}
+              disabled={runner.isRunning}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reset
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div className="flex flex-col">
+              <span className="text-muted-foreground text-xs">Trades</span>
+              <span className="font-semibold text-foreground tabular-nums">{runner.sessionTradesCompleted}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground text-xs">Win / Loss</span>
+              <span className="font-semibold text-foreground tabular-nums">
+                {runner.sessionWins} / {runner.sessionLosses}
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground text-xs">Win Rate</span>
+              <span className="font-semibold text-foreground tabular-nums">
+                {runner.sessionTradesCompleted > 0
+                  ? `${((runner.sessionWins / runner.sessionTradesCompleted) * 100).toFixed(1)}%`
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground text-xs">Net P/L</span>
+              <span
+                className={`font-semibold tabular-nums ${
+                  runner.sessionTotalProfit > 0
+                    ? "text-green-600"
+                    : runner.sessionTotalProfit < 0
+                      ? "text-red-600"
+                      : "text-foreground"
+                }`}
+              >
+                {runner.sessionTotalProfit >= 0 ? "+" : ""}
+                {runner.sessionTotalProfit.toFixed(2)} {currency || "USD"}
               </span>
             </div>
           </div>
