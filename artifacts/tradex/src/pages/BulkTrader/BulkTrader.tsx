@@ -164,6 +164,12 @@ export default function BulkTrader() {
 
   return (
     <div className="flex flex-col w-full h-full p-4 md:p-6 gap-5">
+      <style>{`
+        @keyframes tx-scanner-glow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(var(--primary-rgb, 99 102 241) / 0.35); }
+          50% { box-shadow: 0 0 0 6px rgba(var(--primary-rgb, 99 102 241) / 0); }
+        }
+      `}</style>
       <div className="flex items-center gap-2">
         <Layers3 className="w-5 h-5 text-primary" />
         <h1 className="text-lg font-semibold text-foreground">Bulk Trader</h1>
@@ -255,9 +261,10 @@ export default function BulkTrader() {
           <button
             type="button"
             onClick={() => setIsScannerOpen(true)}
+            style={{ animation: "tx-scanner-glow 2.4s ease-in-out infinite" }}
             className="w-full md:w-auto flex items-center justify-center gap-2 h-[3.25rem] px-4 rounded-md border border-primary/40 bg-primary/10 text-primary text-sm font-semibold hover:bg-primary/15 transition-colors"
           >
-            <Cpu className="w-4 h-4" />
+            <Cpu className="w-4 h-4 animate-pulse" />
             AI Scanner
           </button>
         </div>
