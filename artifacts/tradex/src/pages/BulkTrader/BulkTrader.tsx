@@ -154,7 +154,12 @@ export default function BulkTrader() {
   };
 
   const handleScan = () => {
-    scanner.scan(MARKETS.map(m => ({ symbol: m.symbol, name: m.label })), lookback);
+    scanner.scan(
+      MARKETS.map(m => ({ symbol: m.symbol, name: m.label })),
+      lookback,
+      tradeType,
+      barrierDigit
+    );
   };
 
   const handleApplyScanResult = (result: MarketScanResult) => {
@@ -539,6 +544,8 @@ export default function BulkTrader() {
           onClose={() => setIsScannerOpen(false)}
           onScan={handleScan}
           onApply={handleApplyScanResult}
+          sideALabel={sides[0].label}
+          sideBLabel={sides[1].label}
         />
       )}
     </div>

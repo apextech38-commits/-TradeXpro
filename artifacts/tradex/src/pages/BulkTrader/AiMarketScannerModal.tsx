@@ -6,9 +6,18 @@ interface AiMarketScannerModalProps {
   onApply: (result: MarketScanResult) => void;
   onScan: () => void;
   scanner: UseMarketScannerResult;
+  sideALabel: string;
+  sideBLabel: string;
 }
 
-export default function AiMarketScannerModal({ onClose, onApply, onScan, scanner }: AiMarketScannerModalProps) {
+export default function AiMarketScannerModal({
+  onClose,
+  onApply,
+  onScan,
+  scanner,
+  sideALabel,
+  sideBLabel,
+}: AiMarketScannerModalProps) {
   const { isScanning, progressLabel, results, error } = scanner;
 
   return (
@@ -39,8 +48,9 @@ export default function AiMarketScannerModal({ onClose, onApply, onScan, scanner
 
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
           <p className="text-xs text-muted-foreground">
-            Scans your configured Volatility markets and ranks them by how far their current Even/Odd split is
-            from an even 50/50 &mdash; the bigger the skew, the stronger the current edge on that market.
+            Scans your configured Volatility markets and ranks them by how far their current {sideALabel}/
+            {sideBLabel} split is from an even 50/50 &mdash; the bigger the skew, the stronger the current edge on
+            that market.
           </p>
 
           {isScanning && (
@@ -127,10 +137,10 @@ export default function AiMarketScannerModal({ onClose, onApply, onScan, scanner
                   <div className="flex flex-col items-end">
                     <span
                       className={`text-sm font-semibold ${
-                        r.favored === "Even" ? "text-teal-600" : "text-red-600"
+                        r.favoredLabel === r.sideALabel ? "text-teal-600" : "text-red-600"
                       }`}
                     >
-                      {r.favored} {Math.max(r.evenPct, r.oddPct).toFixed(1)}%
+                      {r.favoredLabel} {Math.max(r.sideAPct, r.sideBPct).toFixed(1)}%
                     </span>
                     <span className="text-[11px] text-muted-foreground">skew {r.skew.toFixed(1)}pp</span>
                   </div>

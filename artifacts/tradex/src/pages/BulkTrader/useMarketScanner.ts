@@ -6,10 +6,13 @@ const WS_URL = `wss://api.derivws.com/trading/v1/options/ws/public`;
 export interface MarketScanResult {
   symbol: string;
   name: string;
-  evenPct: number;
-  oddPct: number;
-  /** Whichever of Even/Odd is currently favored */
-  favored: "Even" | "Odd";
+  /** The two sides relevant to whichever trade type the scan was run for */
+  sideALabel: string;
+  sideAPct: number;
+  sideBLabel: string;
+  sideBPct: number;
+  /** Whichever side is currently ahead */
+  favoredLabel: string;
   /** How far from a 50/50 split - the actual "edge" this market is showing right now */
   skew: number;
 }
@@ -24,17 +27,25 @@ export interface UseMarketScannerResult {
   progressLabel: string | null;
   results: MarketScanResult[];
   error: string | null;
-  scan: (targets: ScanTarget[], lookback: number) => Promise<void>;
+  scan: (
+    targets: ScanTarget[],
+    lookback: number,
+    tradeType: "evenodd" | "overunder" | "matchdiffer",
+    barrierDigit: number
+  ) => Promise<void>;
   reset: () => void;
 }
 
 /**
  * One-shot ticks_history fetch (no subscribe) for a single symbol, resolved
- * with that symbol's current even/odd split. Real computation against live
- * data - not a scripted animation - since this decides where real money
- * goes.
+ * with the full 0-9 digit percentage breakdown. Real computation against
+ * live data - not a scripted animation - since this decides where real
+ * money goes. Returning the whole histogram (not just even/odd) lets the
+ * caller derive whichever two sides matter for the currently selected
+ * trade type -- Over/Under and Matches/Differs both need this, not just
+ * Even/Odd.
  */
-function fetchDigitSplit(symbol: string, lookback: number): Promise<{ evenPct: number; oddPct: number }> {
+function fetchDigitHistogram(symbol: string, lookback: number): Promise<number[]> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(WS_URL);
     const timeout = setTimeout(() => {
@@ -67,11 +78,12 @@ function fetchDigitSplit(symbol: string, lookback: number): Promise<{ evenPct: n
             typeof p === "string" ? parseFloat(p) : p
           );
           const digits: number[] = prices.map(getLastDigit);
-          const evenCount = digits.filter(d => d % 2 === 0).length;
-          const evenPct = digits.length ? (evenCount / digits.length) * 100 : 50;
+          const counts = new Array(10).fill(0);
+          digits.forEach(d => counts[d]++);
+          const percentages = digits.length ? counts.map(c => (c / digits.length) * 100) : new Array(10).fill(10);
           clearTimeout(timeout);
           ws.close();
-          resolve({ evenPct, oddPct: 100 - evenPct });
+          resolve(percentages);
         }
       } catch {
         // ignore malformed frames, let the timeout handle it
@@ -83,6 +95,25 @@ function fetchDigitSplit(symbol: string, lookback: number): Promise<{ evenPct: n
       reject(new Error(`Connection error while scanning ${symbol}`));
     };
   });
+}
+
+/** Derives the two sides relevant to a trade type from a full digit histogram. */
+function deriveSides(
+  percentages: number[],
+  tradeType: "evenodd" | "overunder" | "matchdiffer",
+  barrierDigit: number
+): { sideALabel: string; sideAPct: number; sideBLabel: string; sideBPct: number } {
+  if (tradeType === "overunder") {
+    const overPct = percentages.filter((_, digit) => digit > barrierDigit).reduce((s, p) => s + p, 0);
+    const underPct = percentages.filter((_, digit) => digit < barrierDigit).reduce((s, p) => s + p, 0);
+    return { sideALabel: "Over", sideAPct: overPct, sideBLabel: "Under", sideBPct: underPct };
+  }
+  if (tradeType === "matchdiffer") {
+    const matchPct = percentages[barrierDigit] ?? 0;
+    return { sideALabel: "Matches", sideAPct: matchPct, sideBLabel: "Differs", sideBPct: 100 - matchPct };
+  }
+  const evenPct = percentages.filter((_, digit) => digit % 2 === 0).reduce((s, p) => s + p, 0);
+  return { sideALabel: "Even", sideAPct: evenPct, sideBLabel: "Odd", sideBPct: 100 - evenPct };
 }
 
 export function useMarketScanner(): UseMarketScannerResult {
@@ -98,45 +129,53 @@ export function useMarketScanner(): UseMarketScannerResult {
     setProgressLabel(null);
   }, []);
 
-  const scan = useCallback(async (targets: ScanTarget[], lookback: number) => {
-    cancelledRef.current = false;
-    setIsScanning(true);
-    setError(null);
-    setResults([]);
+  const scan = useCallback(
+    async (
+      targets: ScanTarget[],
+      lookback: number,
+      tradeType: "evenodd" | "overunder" | "matchdiffer",
+      barrierDigit: number
+    ) => {
+      cancelledRef.current = false;
+      setIsScanning(true);
+      setError(null);
+      setResults([]);
 
-    const collected: MarketScanResult[] = [];
+      const collected: MarketScanResult[] = [];
 
-    for (const target of targets) {
-      if (cancelledRef.current) break;
-      setProgressLabel(`Scanning ${target.name}...`);
-      try {
-        const { evenPct, oddPct } = await fetchDigitSplit(target.symbol, lookback);
-        collected.push({
-          symbol: target.symbol,
-          name: target.name,
-          evenPct,
-          oddPct,
-          favored: evenPct >= oddPct ? "Even" : "Odd",
-          skew: Math.abs(evenPct - oddPct),
-        });
-      } catch (err) {
-        // Skip markets that fail to scan rather than aborting the whole run
-        // eslint-disable-next-line no-console
-        console.warn(err instanceof Error ? err.message : `Failed to scan ${target.symbol}`);
+      for (const target of targets) {
+        if (cancelledRef.current) break;
+        setProgressLabel(`Scanning ${target.name}...`);
+        try {
+          const percentages = await fetchDigitHistogram(target.symbol, lookback);
+          const sides = deriveSides(percentages, tradeType, barrierDigit);
+          collected.push({
+            symbol: target.symbol,
+            name: target.name,
+            ...sides,
+            favoredLabel: sides.sideAPct >= sides.sideBPct ? sides.sideALabel : sides.sideBLabel,
+            skew: Math.abs(sides.sideAPct - sides.sideBPct),
+          });
+        } catch (err) {
+          // Skip markets that fail to scan rather than aborting the whole run
+          // eslint-disable-next-line no-console
+          console.warn(err instanceof Error ? err.message : `Failed to scan ${target.symbol}`);
+        }
       }
-    }
 
-    if (!cancelledRef.current) {
-      collected.sort((a, b) => b.skew - a.skew);
-      setResults(collected);
-      if (collected.length === 0) {
-        setError("Could not scan any markets. Check your connection and try again.");
+      if (!cancelledRef.current) {
+        collected.sort((a, b) => b.skew - a.skew);
+        setResults(collected);
+        if (collected.length === 0) {
+          setError("Could not scan any markets. Check your connection and try again.");
+        }
       }
-    }
 
-    setProgressLabel(null);
-    setIsScanning(false);
-  }, []);
+      setProgressLabel(null);
+      setIsScanning(false);
+    },
+    []
+  );
 
   return { isScanning, progressLabel, results, error, scan, reset };
 }
