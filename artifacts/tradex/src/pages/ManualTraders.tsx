@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 
 const DTRADER_URL = 'https://dtrader.tradexpro.co.ke';
@@ -16,6 +16,13 @@ export default function ManualTraders() {
   // in the live console: "target origin provided (dtrader.tradexpro.co.ke)
   // does not match the recipient window's origin (tradexpro.co.ke)".
   const iframeLoadedRef = useRef(false);
+  // Mirrors iframeLoadedRef but as state, purely to drive the loading overlay.
+  const [isReady, setIsReady] = useState(false);
+  // Tracks the last loginid we actually sent, so we can tell when a NEW send
+  // is about to trigger auth-bridge.ts's own reload -- that's the moment to
+  // show the overlay again, rather than leaving a stale/wrong-account view
+  // on screen with no indication anything is happening.
+  const lastSentLoginidRef = useRef<string | null>(null);
   const { isLoggedIn, activeAccount, accounts, logout } = useAuth();
 
   const sendAuth = useCallback(() => {
@@ -35,6 +42,19 @@ export default function ManualTraders() {
     }
 
     const loginid = activeAccount?.account ?? parsedAccounts?.[0]?.account ?? '';
+
+    // This mirrors auth-bridge.ts's own "reload if the account actually
+    // changed" check. If it's about to reload, show the overlay now instead
+    // of leaving the previous (soon to be stale) account's screen visible
+    // for however long the reload takes. The very first send (nothing sent
+    // yet this mount) is a normal boot, not a switch -- no overlay needed
+    // beyond the one already showing before the iframe's first load.
+    const isAccountChange = loginid && lastSentLoginidRef.current !== null && loginid !== lastSentLoginidRef.current;
+    if (loginid) lastSentLoginidRef.current = loginid;
+    if (isAccountChange) {
+      iframeLoadedRef.current = false;
+      setIsReady(false);
+    }
 
     iframe.contentWindow.postMessage(
       { type: 'TRADEXPRO_AUTH', token, loginid, accounts: parsedAccounts },
@@ -64,6 +84,7 @@ export default function ManualTraders() {
 
     const handleLoad = () => {
       iframeLoadedRef.current = true;
+      setIsReady(true);
       if (isLoggedIn) sendAuth();
     };
 
@@ -98,7 +119,35 @@ export default function ManualTraders() {
   // dtrader simply won't receive a TRADEXPRO_AUTH message and stays in its own
   // default state until the user logs in on the main site.
   return (
-    <div style={{ width: '100%', height: 'calc(100vh - 80px)', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: 'calc(100vh - 80px)', overflow: 'hidden', position: 'relative' }}>
+      {!isReady && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            background: 'var(--background, #fff)',
+            zIndex: 1,
+          }}
+        >
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              border: '3px solid rgba(120,120,120,0.25)',
+              borderTopColor: 'currentColor',
+              borderRadius: '50%',
+              animation: 'tradexpro-spin 0.8s linear infinite',
+            }}
+          />
+          <span style={{ fontSize: 13, color: 'var(--muted-foreground, #6b7280)' }}>Loading Manual Traders&hellip;</span>
+          <style>{'@keyframes tradexpro-spin { to { transform: rotate(360deg); } }'}</style>
+        </div>
+      )}
       <iframe
         ref={iframeRef}
         src={DTRADER_URL}
