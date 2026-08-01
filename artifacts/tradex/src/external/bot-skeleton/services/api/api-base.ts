@@ -408,6 +408,25 @@ class APIBase {
                     console.error('❌ [authorizeAndSubscribe] Exception during api.authorize():', {
                         exception_message: authException?.message,
                         exception_type: authException?.constructor?.name,
+                        // authException?.message is undefined for a lot of what a broken
+                        // WebSocket call can actually throw (a raw CloseEvent, a plain
+                        // {error:...} object, etc) -- pull out whatever fields those
+                        // shapes actually have so this is readable without manually
+                        // expanding the object in devtools every time.
+                        exception_name: authException?.name,
+                        exception_code: authException?.code,
+                        exception_reason: authException?.reason,
+                        exception_error_code: authException?.error?.code,
+                        exception_error_message: authException?.error?.message,
+                        is_close_event: authException instanceof CloseEvent,
+                        websocket_ready_state: this.api?.connection?.readyState,
+                        exception_stringified: (() => {
+                            try {
+                                return JSON.stringify(authException);
+                            } catch {
+                                return String(authException);
+                            }
+                        })(),
                         exception_full: authException,
                     });
                     setIsAuthorizing(false);
