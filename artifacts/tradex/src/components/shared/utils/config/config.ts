@@ -487,10 +487,17 @@ export const getSocketURL = async (): Promise<string> => {
 
         // Check PKCE OAuth first (new platform users)
         const authInfo = OAuthTokenExchangeService.getAuthInfo();
-        if (authInfo?.access_token) {
+        // authInfo/sessionStorage['auth_info'] is a different auth flow's
+        // storage than this shell's actual login (AuthContext.tsx, which
+        // stores the real access token under localStorage['tradex_access_token']).
+        // Without also checking that key here, every TradeX user's real PKCE
+        // token was invisible to this check and fell through to the legacy
+        // branch below, which sends that same token to the wrong server.
+        const shellAccessToken = authInfo?.access_token || localStorage.getItem('tradex_access_token');
+        if (shellAccessToken) {
             console.log('[getSocketURL] PKCE user detected - fetching authenticated WebSocket URL');
             // Use the DerivWSAccountsService to get authenticated WebSocket URL
-            const wsUrl = await DerivWSAccountsService.getAuthenticatedWebSocketURL(authInfo.access_token);
+            const wsUrl = await DerivWSAccountsService.getAuthenticatedWebSocketURL(shellAccessToken);
             return wsUrl;
         }
 
