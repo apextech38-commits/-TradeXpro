@@ -27,10 +27,19 @@ export default function ManualTraders() {
 
   const sendAuth = useCallback(() => {
     const iframe = iframeRef.current;
-    if (!iframe?.contentWindow || !iframeLoadedRef.current) return;
+    if (!iframe?.contentWindow || !iframeLoadedRef.current) {
+      console.log('[ManualTraders] sendAuth skipped -- iframe not loaded yet', {
+        has_content_window: !!iframe?.contentWindow,
+        iframe_loaded: iframeLoadedRef.current,
+      });
+      return;
+    }
 
     const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) return; // not logged in on main site — nothing to send
+    if (!token) {
+      console.log('[ManualTraders] sendAuth skipped -- no token in localStorage, not logged in on main site');
+      return;
+    }
 
     let parsedAccounts = accounts;
     if (!parsedAccounts?.length) {
@@ -56,6 +65,12 @@ export default function ManualTraders() {
       setIsReady(false);
     }
 
+    console.log('[ManualTraders] sending TRADEXPRO_AUTH', {
+      loginid,
+      accounts_count: parsedAccounts?.length ?? 0,
+      target_origin: DTRADER_URL,
+    });
+
     iframe.contentWindow.postMessage(
       { type: 'TRADEXPRO_AUTH', token, loginid, accounts: parsedAccounts },
       DTRADER_URL, // never '*'
@@ -67,11 +82,17 @@ export default function ManualTraders() {
     if (!iframe) return;
 
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== DTRADER_URL) return;
+      if (event.origin !== DTRADER_URL) {
+        console.log('[ManualTraders] ignoring message from unexpected origin', event.origin, event.data);
+        return;
+      }
+
+      console.log('[ManualTraders] received message from iframe', event.data?.type);
 
       // dtrader iframe says it's ready → push current auth (silent SSO)
       if (event.data?.type === 'DTRADER_AUTH_READY') {
         if (isLoggedIn) sendAuth();
+        else console.log('[ManualTraders] got DTRADER_AUTH_READY but isLoggedIn is false -- not sending');
         return;
       }
 
@@ -83,6 +104,7 @@ export default function ManualTraders() {
     };
 
     const handleLoad = () => {
+      console.log('[ManualTraders] iframe load event fired, isLoggedIn:', isLoggedIn);
       iframeLoadedRef.current = true;
       setIsReady(true);
       if (isLoggedIn) sendAuth();
