@@ -433,6 +433,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .filter((a, i, arr) => arr.findIndex((x) => x.account === a.account) === i);
 
         localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(ordered));
+
+        // ── Mirror into the keys that getSocketURL() / api_base actually reads ──
+        // getSocketURL() in the bot-skeleton checks localStorage['accountsList']
+        // (keyed by loginid → { token }) and localStorage['active_loginid'].
+        // Without this, it finds nothing, falls through to the unauthenticated
+        // public WS endpoint, and every buy/proposal request fails. This is why
+        // Bulk Trader trades were "authentically dead" -- they went through
+        // api_base which couldn't connect authenticated.
+        const accountsListMirror: Record<string, { token: string; currency: string }> = {};
+        ordered.forEach((a) => {
+          accountsListMirror[a.account] = { token: a.token, currency: a.currency };
+        });
+        localStorage.setItem('accountsList', JSON.stringify(accountsListMirror));
+        localStorage.setItem('active_loginid', ordered[0].account);
+        // ─────────────────────────────────────────────────────────────────────────
+
         setAccounts(ordered);
         setActiveAccount(ordered[0]);
         connect(ordered[0]);
@@ -486,6 +502,8 @@ url.searchParams.set("scope", "trade");
     wsRef.current?.close();
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(ACCOUNTS_KEY);
+    localStorage.removeItem('accountsList');
+    localStorage.removeItem('active_loginid');
     setAccounts([]);
     setActiveAccount(null);
     setIsAuthorized(false);
@@ -501,7 +519,8 @@ url.searchParams.set("scope", "trade");
     setBalance(null);
     setEmail(null);
     setRecentTrades([]);
-    localStorage.setItem("tradex_active_acct_token", acct.token); // per-account token, not OAuth token
+    localStorage.setItem("tradex_active_acct_token", acct.token);
+    localStorage.setItem("active_loginid", acct.account); // mirror for getSocketURL()
     connect(acct);
   };
 
