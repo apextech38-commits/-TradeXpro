@@ -608,6 +608,21 @@ class APIBase {
                 currentClientStore.setWebSocketLoginId(balance.loginid);
             }
 
+            // client_store.balance (read by hasSufficientDemoBalance() /
+            // getDisplayBalanceAmount(), which Bulk Trader's purchase gate
+            // checks before every buy) was never actually being populated.
+            // The 'api.authorize' event emitted below does carry the balance
+            // and client-store.ts's onAuthorizeEvent listener does handle it
+            // -- but relying solely on that emit/subscribe pairing is
+            // fragile to registration-order timing. Call it directly here
+            // too, from the one place that just successfully fetched a real
+            // balance, so it can never silently stay stuck at its initial
+            // value (which is what caused "Insufficient demo balance:
+            // available 0.00 USD" despite a real balance of 9021.45).
+            if (currentClientStore && balance?.loginid && typeof balance?.balance === 'number') {
+                currentClientStore.applyBalanceUpdate(balance.loginid, balance.currency || 'USD', balance.balance);
+            }
+
             setIsAuthorized(true);
             this.is_authorized = true;
             localStorage.setItem('client_account_details', JSON.stringify(accountList));
