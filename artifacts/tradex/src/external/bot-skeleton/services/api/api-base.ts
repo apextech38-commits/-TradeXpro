@@ -358,9 +358,24 @@ class APIBase {
                 ws_ready_state: this.api?.connection?.readyState,
             });
 
+            // PKCE/OAuth2 sessions connect via getSocketURL()'s OTP-authenticated
+            // WebSocket URL (see DerivWSAccountsService.getAuthenticatedWebSocketURL),
+            // which is already authorized as soon as the socket opens -- Deriv's
+            // OTP exchange embeds the session in the URL itself. Calling legacy
+            // api.authorize(token) again afterwards was the actual bug: it sent
+            // the raw OAuth2 access_token to a call that expects a genuine legacy
+            // per-account API token, which the server can't validate, throwing an
+            // opaque {} exception (constructor.name: 'Object', every field
+            // undefined) and potentially resetting the connection. Skip it here.
+            const isPkceSession = !!localStorage.getItem('tradex_access_token');
+
             // Authorize with the token first (required for legacy API)
             let authorizeData: TAuthData | undefined;
-            if (storedToken) {
+            if (isPkceSession) {
+                console.log(
+                    '[authorizeAndSubscribe] PKCE session detected -- connection already authorized via OTP URL, skipping legacy api.authorize()'
+                );
+            } else if (storedToken) {
                 try {
                     console.log('[authorizeAndSubscribe] 🔐 Calling api.authorize() with legacy token...');
                     const authResult = await this.api.authorize(storedToken);
