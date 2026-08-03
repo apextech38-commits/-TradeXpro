@@ -31,14 +31,33 @@ const queryClient = new QueryClient();
 function AppContent() {
   const [loading, setLoading] = useState(true);
   const location = useLocation();
+  const [navHeight, setNavHeight] = useState(80); // sensible default before first measurement
 
+  useEffect(() => {
+    // Navbar renders its own position:fixed <nav> internally -- observing
+    // that actual element directly, rather than wrapping it in another
+    // fixed container (which would measure as zero height, since a
+    // position:fixed child is taken out of its parent's normal-flow
+    // layout and doesn't contribute to the parent's own height).
+    const navEl = document.querySelector("nav");
+    if (!navEl) return;
+    const observer = new ResizeObserver((entries) => {
+      const height = entries[0]?.contentRect.height;
+      if (height) setNavHeight(height);
+    });
+    observer.observe(navEl);
+    return () => observer.disconnect();
+  }, [loading]);
 
   if (loading) {
     return <LoadingScreen onComplete={() => setLoading(false)} />;
   }
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground font-sans flex flex-col pt-[80px] pb-[52px]">
+    <div
+      className="min-h-screen w-full bg-background text-foreground font-sans flex flex-col"
+      style={{ paddingTop: navHeight }}
+    >
       <Navbar />
       <main className="flex-1 flex flex-col w-full h-full overflow-y-auto">
         <Routes>

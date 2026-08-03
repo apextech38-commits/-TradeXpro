@@ -141,7 +141,7 @@ export default function ManualTraders() {
   // dtrader simply won't receive a TRADEXPRO_AUTH message and stays in its own
   // default state until the user logs in on the main site.
   return (
-    <div style={{ width: '100%', height: 'calc(100vh - 80px)', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
       {!isReady && (
         <div
           style={{

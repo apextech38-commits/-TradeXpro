@@ -54,7 +54,7 @@ export default function ChartsEmbed() {
   }, [activeAccount, isLoggedIn, sendAuth]);
 
   return (
-    <div style={{ width: '100%', height: 'calc(100vh - 80px)', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
       <iframe
         ref={iframeRef}
         src={CHARTS_URL}
