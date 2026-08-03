@@ -55,7 +55,7 @@ function AppContent() {
 
   return (
     <div
-      className="min-h-screen w-full bg-background text-foreground font-sans flex flex-col"
+      className="h-dvh w-full bg-background text-foreground font-sans flex flex-col"
       style={{ paddingTop: navHeight }}
     >
       <Navbar />
