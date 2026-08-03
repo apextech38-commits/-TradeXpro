@@ -324,7 +324,7 @@ export default class ClientStore {
 
         const accountBalance =
             this.accounts[resolvedLoginId]?.balance ??
-            (resolvedLoginId === this.loginid ? this.balance : undefined) ??
+            (resolvedLoginId === this.loginid || resolvedLoginId === getAccountId() ? this.balance : undefined) ??
             this.account_list.find(account => account.loginid === resolvedLoginId)?.balance;
 
         const numericBalance = Number(accountBalance ?? 0);
@@ -338,7 +338,7 @@ export default class ClientStore {
         return (
             this.accounts[resolvedLoginId]?.currency ||
             this.account_list.find(account => account.loginid === resolvedLoginId)?.currency ||
-            (resolvedLoginId === this.loginid ? this.currency : '') ||
+            (resolvedLoginId === this.loginid || resolvedLoginId === getAccountId() ? this.currency : '') ||
             'USD'
         );
     };
@@ -358,7 +358,7 @@ export default class ClientStore {
 
         const currentServerBalance =
             this.server_balances[loginid] ??
-            Number(this.accounts[loginid]?.balance ?? (loginid === this.loginid ? this.balance : 0) ?? 0);
+            Number(this.accounts[loginid]?.balance ?? (loginid === this.loginid || loginid === getAccountId() ? this.balance : 0) ?? 0);
 
         const normalizedCurrency = currency || this.accounts[loginid]?.currency || this.currency || 'USD';
         const override: TDemoBalanceOverride = {
