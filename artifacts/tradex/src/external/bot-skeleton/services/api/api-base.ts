@@ -73,6 +73,9 @@ class APIBase {
     active_symbols: any[] = [];
     current_auth_subscriptions: SubscriptionPromise[] = [];
     is_authorized = false;
+    balance: number | undefined;
+    currency: string | undefined;
+    loginid: string | undefined;
     active_symbols_promise: Promise<any[] | undefined> | null = null;
     common_store: CommonStore | undefined;
     reconnection_attempts: number = 0;
@@ -595,6 +598,15 @@ class APIBase {
 
             setIsAuthorized(true);
             this.is_authorized = true;
+            // client.store's own loginid gets synced above (setWebSocketLoginId),
+            // but nothing ever syncs its balance -- assertSufficientDemoBalance in
+            // trade-purchase.ts was reading client.store.getDisplayBalanceAmount(),
+            // which stays at its stale/default value forever. Exposing the actual
+            // fetched balance directly here instead, as the source of truth this
+            // authorize call just established.
+            this.balance = typeof balance?.balance === 'number' ? balance.balance : 0;
+            this.currency = balance?.currency || 'USD';
+            this.loginid = balance?.loginid;
             localStorage.setItem('client_account_details', JSON.stringify(accountList));
             localStorage.setItem('client.country', balance?.country);
 
@@ -627,6 +639,7 @@ class APIBase {
         } catch (e) {
             console.error('❌ [authorizeAndSubscribe] Exception:', e);
             this.is_authorized = false;
+            this.balance = undefined;
             clearAuthData();
             setIsAuthorized(false);
             globalObserver.emit('Error', e);

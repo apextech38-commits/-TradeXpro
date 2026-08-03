@@ -83,22 +83,18 @@ const getMoneyDecimals = (currency?: string) => {
 const formatAmount = (amount: number, currency: string) => `${amount.toFixed(getMoneyDecimals(currency))} ${currency}`;
 
 const assertSufficientDemoBalance = (required_amount: number, source: string) => {
-    const client_store = globalObserver.getState('client.store') as
-        | {
-              loginid?: string;
-              currency?: string;
-              getAccountCurrency?: (loginid?: string) => string;
-              getDisplayBalanceAmount?: (loginid?: string) => number;
-              hasSufficientDemoBalance?: (amount: number, loginid?: string) => boolean;
-          }
-        | undefined;
+    // client.store's own balance tracking is never actually synced by
+    // anything (confirmed in api-base.ts: only its loginid gets updated via
+    // setWebSocketLoginId, never its balance) -- reading from api_base
+    // directly instead, which is the actual source of truth that gets set
+    // the moment authorizeAndSubscribe() successfully completes.
+    const api_base_any = api_base as unknown as { balance?: number; currency?: string; loginid?: string };
+    const available_balance = Number(api_base_any.balance ?? 0);
+    const currency = api_base_any.currency || 'USD';
 
-    const loginid = client_store?.loginid;
-    if (!client_store?.hasSufficientDemoBalance?.(required_amount, loginid)) {
-        const currency = client_store?.getAccountCurrency?.(loginid) || client_store?.currency || 'USD';
-        const available_balance = Number(client_store?.getDisplayBalanceAmount?.(loginid) ?? 0);
+    if (available_balance < required_amount) {
         throw new InsufficientDemoBalanceError(
-            `${source} could not purchase this contract. Insufficient demo balance: available ${formatAmount(
+            `${source} could not purchase this contract. Insufficient balance: available ${formatAmount(
                 available_balance,
                 currency
             )}, required ${formatAmount(required_amount, currency)}.`
