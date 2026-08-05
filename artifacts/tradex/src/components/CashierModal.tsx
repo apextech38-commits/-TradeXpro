@@ -3,23 +3,28 @@ import { useEffect, useState } from "react";
 // ---------------------------------------------------------------------------
 // TradeX Pro — Cashier Modal
 // ---------------------------------------------------------------------------
-// Redirects the user straight to Deriv's own hosted, logged-in cashier
-// (app.deriv.com/cashier/...) instead of requesting a session-scoped URL via
-// the WS `cashier` API.
+// Redirects the user to AbePay (app.abepayy.com) -- a third-party service
+// for instant M-Pesa <-> Deriv deposits/withdrawals. AbePay handles its own
+// Deriv login ("Login with Deriv" button on its landing page) via Deriv's
+// OAuth, so this app doesn't need to pass any credentials or tokens to it --
+// it's a plain redirect, same as the previous app.deriv.com/cashier
+// integration this replaces.
 //
-// Why: the WS `cashier` call requires a "Payments" OAuth scope that's
-// separate from the read/trade scopes this app currently requests. Rather
-// than depend on that scope being granted, this sends the user to Deriv's
-// own site, where they authenticate with their own Deriv session if needed.
+// AbePay is a single-page app with one entry point; deposit and withdraw are
+// both chosen from within its own UI after login, not via separate
+// pre-login URLs. So both buttons below point at the same root URL.
 //
-// Trade-off: the new tab is NOT pre-authorized with this app's OAuth token.
-// If the user isn't already logged into app.deriv.com in that browser,
-// Deriv will ask them to log in there. That's expected, not a bug.
+// Previous approach (kept for reference/rollback): sent users to Deriv's own
+// hosted cashier (app.deriv.com/cashier/deposit or /withdraw). That required
+// a "Payments" OAuth scope this app doesn't currently request.
 //
 // Balance refresh: no extra logic needed here. AuthContext already listens
 // for the tab regaining focus/visibility and calls refreshBalance() at that
 // point, which covers the "user comes back after depositing" case.
 // ---------------------------------------------------------------------------
+
+const ABEPAY_URL = "https://app.abepayy.com/";
+
 
 type CashierAction = "deposit" | "withdraw";
 
@@ -70,8 +75,7 @@ export default function CashierModal({
     setErrorMsg("");
     setAction(type);
 
-    const url = `https://app.deriv.com/cashier/${type}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.open(ABEPAY_URL, "_blank", "noopener,noreferrer");
 
     onCashierOpened?.();
   };
