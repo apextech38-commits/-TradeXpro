@@ -20,6 +20,46 @@ const TOKEN_KEY = "tradex_access_token";
 const ACCOUNTS_KEY = "tradex-deriv-accounts";
 const PKCE_VERIFIER_KEY = "tradex_pkce_verifier";
 const PKCE_STATE_KEY = "tradex_pkce_state";
+// Presence-only marker used to detect a genuinely new browser session.
+const SESSION_MARKER_KEY = "tradex_session_active";
+
+// sessionStorage is cleared by the browser whenever the tab or the browser
+// process itself ends (closing the tab, closing the browser, restarting the
+// device) but is preserved across an ordinary reload or in-tab navigation.
+// That makes its presence/absence, checked once at boot, the correct signal
+// for "did the person actually leave" -- unlike a beforeunload listener,
+// which fires unreliably on mobile browsers, PWAs, and simple tab
+// backgrounding, and would log people out for no reason.
+//
+// Returns true (and sets the marker) the first time this runs in a given
+// browser session; returns false on every subsequent call in that same
+// session (reloads, in-app navigation, etc).
+function isFreshBrowserSession(): boolean {
+  try {
+    if (sessionStorage.getItem(SESSION_MARKER_KEY)) return false;
+    sessionStorage.setItem(SESSION_MARKER_KEY, "1");
+    return true;
+  } catch {
+    // sessionStorage unavailable (private mode, etc). Fail safe: don't
+    // force a logout we can't actually reason about.
+    return false;
+  }
+}
+
+// Same set of keys logout() below clears -- kept in sync with it so a
+// forced "new session" wipe and an explicit logout can never fall out of
+// sync with each other.
+function clearPersistedAuth() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(ACCOUNTS_KEY);
+    localStorage.removeItem("accountsList");
+    localStorage.removeItem("active_loginid");
+    localStorage.removeItem("tradex_active_acct_token");
+  } catch {
+    // localStorage unavailable - nothing to clear.
+  }
+}
 
 function generateRandom(length = 64): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
@@ -122,6 +162,13 @@ const AuthContext = createContext<AuthState>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<DerivAccount[]>(() => {
+    // Closing the tab, closing the browser, or restarting the device all
+    // end the browser session -- require a fresh login rather than silently
+    // restoring whatever was left in localStorage from before.
+    if (isFreshBrowserSession()) {
+      clearPersistedAuth();
+      return [];
+    }
     try {
       return JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || "[]");
     } catch {

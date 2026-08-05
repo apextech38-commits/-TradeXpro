@@ -23,6 +23,11 @@ export default function ManualTraders() {
   // show the overlay again, rather than leaving a stale/wrong-account view
   // on screen with no indication anything is happening.
   const lastSentLoginidRef = useRef<string | null>(null);
+  // Set once the iframe has posted DTRADER_AUTH_READY, independent of
+  // isLoggedIn. Lets the retry effect below know "the iframe is genuinely
+  // waiting on us" rather than only reacting to an isLoggedIn transition
+  // that may have already happened before the iframe was ready.
+  const dtraderReadyRef = useRef(false);
   const { isLoggedIn, activeAccount, accounts, logout } = useAuth();
 
   const sendAuth = useCallback(() => {
@@ -91,8 +96,9 @@ export default function ManualTraders() {
 
       // dtrader iframe says it's ready → push current auth (silent SSO)
       if (event.data?.type === 'DTRADER_AUTH_READY') {
+        dtraderReadyRef.current = true;
         if (isLoggedIn) sendAuth();
-        else console.log('[ManualTraders] got DTRADER_AUTH_READY but isLoggedIn is false -- not sending');
+        else console.log('[ManualTraders] got DTRADER_AUTH_READY but isLoggedIn is false -- will retry once auth settles');
         return;
       }
 
@@ -129,12 +135,40 @@ export default function ManualTraders() {
   // DTRADER_AUTH_READY is a one-time ping the iframe sends right after its own
   // bootstrap finishes. If isLoggedIn was still false at that exact moment
   // (AuthContext hadn't finished restoring the session from localStorage yet),
-  // sendAuth() was skipped above and never retried — the iframe stays in its
-  // logged-out/default state for the rest of that mount. Proactively resend
-  // once isLoggedIn actually settles to true, so a late-resolving session
-  // doesn't get missed.
+  // sendAuth() was skipped above. Proactively resend once isLoggedIn actually
+  // settles to true.
+  //
+  // A single resend isn't enough on its own: sendAuth() independently
+  // re-reads the token straight from localStorage rather than trusting the
+  // isLoggedIn flag, and on the very first render after a fresh OAuth
+  // redirect there can be a brief tick where `accounts` (which isLoggedIn is
+  // derived from) has updated but the token write hasn't landed yet, or vice
+  // versa. If that single retry lands in that gap it silently no-ops again
+  // with nothing left to trigger a further attempt, leaving dtrader stuck
+  // logged out for the rest of the mount. Retry with backoff instead of a
+  // single best-effort attempt, and only while dtrader has actually asked
+  // (dtraderReadyRef) so this doesn't fire uselessly before the iframe is
+  // ready to receive it.
   useEffect(() => {
-    if (isLoggedIn) sendAuth();
+    if (!isLoggedIn || !dtraderReadyRef.current) return;
+    let cancelled = false;
+    const attempt = (retriesLeft: number) => {
+      if (cancelled) return;
+      const hasToken = !!localStorage.getItem(TOKEN_KEY);
+      if (hasToken) {
+        sendAuth();
+        return;
+      }
+      if (retriesLeft <= 0) {
+        console.log('[ManualTraders] gave up retrying sendAuth -- token never appeared in localStorage');
+        return;
+      }
+      setTimeout(() => attempt(retriesLeft - 1), 500);
+    };
+    attempt(5);
+    return () => {
+      cancelled = true;
+    };
   }, [isLoggedIn, sendAuth]);
 
   // Always mount the iframe — no lock screen. If the main site isn't logged in,

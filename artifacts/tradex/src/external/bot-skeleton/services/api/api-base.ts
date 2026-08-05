@@ -622,6 +622,21 @@ class APIBase {
             // balance, so it can never silently stay stuck at its initial
             // value (which is what caused "Insufficient demo balance:
             // available 0.00 USD" despite a real balance of 9021.45).
+            //
+            // applyBalanceUpdate() only actually writes client_store.balance
+            // when `loginid === this.loginid || loginid === getAccountId()`.
+            // client_store.loginid was never set here (setWebSocketLoginId
+            // above writes a *different* field), and the localStorage
+            // 'active_loginid' write below happens AFTER this block runs --
+            // so on the very first authorize of a session, both halves of
+            // that guard read stale/empty values, the guard silently fails,
+            // and the balance write gets dropped even though this call
+            // itself succeeds. Set client_store.loginid explicitly first so
+            // the guard always matches on the account we just authorized,
+            // regardless of localStorage timing.
+            if (currentClientStore && balance?.loginid) {
+                currentClientStore.setLoginId(balance.loginid);
+            }
             if (currentClientStore && balance?.loginid && typeof balance?.balance === 'number') {
                 currentClientStore.applyBalanceUpdate(balance.loginid, balance.currency || 'USD', balance.balance);
             }
