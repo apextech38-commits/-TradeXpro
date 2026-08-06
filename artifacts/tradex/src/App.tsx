@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/context/AuthContext";
@@ -88,9 +88,9 @@ function App() {
         <BotProvider>
           <QueryClientProvider client={queryClient}>
             <TooltipProvider>
-              <HashRouter>
+              <BrowserRouter>
                 <AppContent />
-              </HashRouter>
+              </BrowserRouter>
               <Toaster />
             </TooltipProvider>
           </QueryClientProvider>
