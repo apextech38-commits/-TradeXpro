@@ -322,10 +322,20 @@ export default class ClientStore {
         const resolvedLoginId = loginid || this.loginid || getAccountId() || '';
         if (!resolvedLoginId) return 0;
 
-        const accountBalance =
-            this.accounts[resolvedLoginId]?.balance ??
-            (resolvedLoginId === this.loginid || resolvedLoginId === getAccountId() ? this.balance : undefined) ??
-            this.account_list.find(account => account.loginid === resolvedLoginId)?.balance;
+        // For the currently active account, this.balance (kept fresh by the
+        // live api.balance() fetch in applyBalanceUpdate) must be checked
+        // BEFORE this.accounts[loginid].balance. The account list is
+        // initially built from the TradexproAuthBridge-mirrored accounts,
+        // which never carry a live balance -- account.balance defaults to a
+        // literal 0 there (Number(account.balance ?? 0)), not undefined. `??`
+        // does not fall through on 0, so checking accounts[...] first meant
+        // this stale placeholder permanently won over the real balance,
+        // which is exactly what caused "Insufficient balance: available
+        // 0.00 USD" even after this.balance was correctly populated.
+        const isActiveAccount = resolvedLoginId === this.loginid || resolvedLoginId === getAccountId();
+        const accountBalance = isActiveAccount
+            ? (this.balance ?? this.accounts[resolvedLoginId]?.balance ?? this.account_list.find(account => account.loginid === resolvedLoginId)?.balance)
+            : (this.accounts[resolvedLoginId]?.balance ?? this.account_list.find(account => account.loginid === resolvedLoginId)?.balance);
 
         const numericBalance = Number(accountBalance ?? 0);
         return Number.isFinite(numericBalance) ? numericBalance : 0;
