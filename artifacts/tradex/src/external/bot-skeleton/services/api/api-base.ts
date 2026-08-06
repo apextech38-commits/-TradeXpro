@@ -694,6 +694,16 @@ class APIBase {
     }
 
     async subscribe() {
+        // authorizeAndSubscribe() runs more than once per page load (visible
+        // in the console as two back-to-back "Starting authorization flow"
+        // blocks). Every call to subscribe() opened a fresh balance/
+        // transaction/proposal_open_contract subscription without forgetting
+        // the previous one, leaving duplicate live subscriptions racing on
+        // the same socket -- the likely source of the uncaught rejection on
+        // an unmatched 'transaction' push. Forgetting prior subscriptions
+        // first makes this idempotent regardless of call count.
+        this.unsubscribeAllSubscriptions();
+
         const subscribeToStream = (streamName: string) => {
             return doUntilDone(
                 () => {
