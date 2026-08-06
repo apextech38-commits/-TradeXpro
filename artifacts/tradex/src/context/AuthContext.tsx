@@ -482,15 +482,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(ordered));
 
         // ── Mirror into the keys that getSocketURL() / api_base actually reads ──
-        // getSocketURL() in the bot-skeleton checks localStorage['accountsList']
-        // (keyed by loginid → { token }) and localStorage['active_loginid'].
-        // Without this, it finds nothing, falls through to the unauthenticated
-        // public WS endpoint, and every buy/proposal request fails. This is why
-        // Bulk Trader trades were "authentically dead" -- they went through
-        // api_base which couldn't connect authenticated.
-        const accountsListMirror: Record<string, { token: string; currency: string }> = {};
+        // api_base's getToken() (appId.js) does `token: client_accounts[loginid]`
+        // directly -- accountsList must be keyed by loginid -> plain token
+        // STRING, not an object. (A previous version of this comment said
+        // "{ token }" objects; that was wrong and this write briefly disagreed
+        // with the plain-string shape the session-restore effect below writes,
+        // relying on that effect firing afterward to silently correct it.)
+        // Without a valid string here, getToken() falls through to the
+        // unauthenticated public WS endpoint, and every buy/proposal request
+        // fails. This is why Bulk Trader trades were "authentically dead" --
+        // they went through api_base which couldn't connect authenticated.
+        const accountsListMirror: Record<string, string> = {};
         ordered.forEach((a) => {
-          accountsListMirror[a.account] = { token: a.token, currency: a.currency };
+          accountsListMirror[a.account] = a.token;
         });
         localStorage.setItem('accountsList', JSON.stringify(accountsListMirror));
         localStorage.setItem('active_loginid', ordered[0].account);
