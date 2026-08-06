@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   Menu, ChevronDown, LogOut, User, Wifi, WifiOff,
   LayoutDashboard, Bot, TrendingUp, CandlestickChart,
-  Cpu, BarChart2, Target, Users, Monitor, Moon, Sun, Layers3,
+  Cpu, Target, Users, Monitor, Moon, Sun, Layers3, Brain,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "./ThemeProvider";
@@ -12,18 +12,18 @@ import CashierModal from "./CashierModal";
 interface TabDef { label: string; Icon: React.ComponentType<{ className?: string }>; route: string; }
 
 export const TABS = [
-  "Dashboard", "Bot Builder", "Manual Traders", "Bulk Trader", "Charts",
-  "Trading Bots", "Analysis Tool", "Strategies", "Copy Trading", "TradingView",
+  "Dashboard", "Bot Builder", "Manual Traders", "Smart Trader", "Bulk Trader", "Charts",
+  "Trading Bots", "Strategies", "Copy Trading", "TradingView",
 ];
 
 const TAB_ICONS: TabDef[] = [
   { label: "Dashboard",     Icon: LayoutDashboard, route: "/dashboard" },
   { label: "Bot Builder",   Icon: Bot,             route: "/botbuilder" },
   { label: "Manual Traders",Icon: TrendingUp,      route: "/manualtraders" },
+  { label: "Smart Trader",  Icon: Brain,           route: "/smarttrader" },
   { label: "Bulk Trader",   Icon: Layers3,         route: "/bulktrader" },
   { label: "Charts",        Icon: CandlestickChart,route: "/charts" },
   { label: "Trading Bots",  Icon: Cpu,             route: "/tradingbots" },
-  { label: "Analysis Tool", Icon: BarChart2,       route: "/analysistool" },
   { label: "Strategies",    Icon: Target,          route: "/strategies" },
   { label: "Copy Trading",  Icon: Users,           route: "/copytrading" },
   { label: "TradingView",   Icon: Monitor,         route: "/tradingview" },

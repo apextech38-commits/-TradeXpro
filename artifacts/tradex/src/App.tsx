@@ -20,7 +20,7 @@ import ManualTraders from "@/pages/ManualTraders";
 import BulkTrader from "@/pages/BulkTrader/BulkTrader";
 
 import TradingBots from "@/pages/TradingBots";
-import AnalysisTool from "@/pages/AnalysisTool";
+import SmartTrader from "@/pages/SmartTrader";
 import Strategies from "@/pages/Strategies";
 import CopyTrading from "@/pages/CopyTrading";
 import TradingView from "@/pages/TradingView";
@@ -65,10 +65,11 @@ function AppContent() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/botbuilder" element={<BotBuilderFrame />} />
           <Route path="/manualtraders" element={<ManualTraders />} />
+          <Route path="/smarttrader" element={<SmartTrader />} />
           <Route path="/bulktrader" element={<BulkTrader />} />
           <Route path="/charts" element={<ChartsEmbed />} />
           <Route path="/tradingbots" element={<TradingBots />} />
-          <Route path="/analysistool" element={<AnalysisTool />} />
+          <Route path="/analysistool" element={<Navigate to="/smarttrader" replace />} />
           <Route path="/strategies" element={<Strategies />} />
           <Route path="/copytrading" element={<CopyTrading />} />
           <Route path="/tradingview" element={<TradingView />} />
