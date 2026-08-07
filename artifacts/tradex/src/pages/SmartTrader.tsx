@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useLiveScanner, ScannerMarket } from "@/hooks/useLiveScanner";
 import { useTodayPerformance } from "@/hooks/useTodayPerformance";
 import { useAutoExitMonitor } from "@/hooks/useAutoExitMonitor";
+import { useStrategyBacktest, STRATEGY_PRESETS, StrategyPreset } from "@/hooks/useStrategyBacktest";
 import { buyContractForUi } from "@/utils/trade-purchase";
 
 // ── Section registry ─────────────────────────────────────────────────────────
@@ -71,6 +72,14 @@ export default function SmartTrader() {
 
   const activeSection = SECTIONS.find(s => s.id === active) ?? null;
 
+  // Real wiring: a preset's symbol/confidence/duration get written straight
+  // into AutoPilot's actual config, then the user lands on AutoPilot to
+  // review and start it -- not a cosmetic "loaded" toast with nothing behind it.
+  const handleLoadPreset = (preset: StrategyPreset) => {
+    autoPilot.setConfig({ ...autoPilot.config, confidenceThreshold: preset.confidenceThreshold, allowedMarkets: [preset.symbol] });
+    setActive("autopilot");
+  };
+
   return (
     <div className="w-full h-full overflow-y-auto bg-background relative">
       <div className="max-w-6xl mx-auto px-4 py-6 pb-24">
@@ -78,6 +87,7 @@ export default function SmartTrader() {
           <SectionView
             section={activeSection} onBack={() => setActive(null)} topMarket={topMarket} perf={perf}
             autoPilot={autoPilot} balance={balance} currency={currency} isLoggedIn={isLoggedIn} logTrade={logTrade}
+            onLoadPreset={handleLoadPreset}
           />
         ) : (
           <DashboardView
@@ -357,6 +367,10 @@ function FeatureCard({ section, topMarket, perf, autoPilot, onOpen }: { section:
       status = autoPilot.exitStatus ? "active" : "not-configured";
       body = autoPilot.exitStatus ? (<><Row k="Watching contract" v={String(autoPilot.exitStatus.contractId)} /><Row k="Live P&L" v={autoPilot.exitStatus.livePnl.toFixed(2)} /></>) : <p className="text-sm text-muted-foreground">Nothing open to monitor right now.</p>;
       break;
+    case "strategies":
+      status = "active";
+      body = <p className="text-sm text-muted-foreground">Real backtests on historical ticks -- load a preset straight into AutoPilot.</p>;
+      break;
     default:
       status = section.id === "one-click" && topMarket ? "active" : "coming-soon";
       body = <p className="text-sm text-muted-foreground">{section.tagline}</p>;
@@ -411,11 +425,12 @@ function Timeline({ signalLog, settledTrades, tradeLog, scanning }: {
 }
 
 // ── Section router ────────────────────────────────────────────────────────────
-function SectionView({ section, onBack, topMarket, perf, autoPilot, balance, currency, isLoggedIn, logTrade }: {
+function SectionView({ section, onBack, topMarket, perf, autoPilot, balance, currency, isLoggedIn, logTrade, onLoadPreset }: {
   section: SectionDef; onBack: () => void; topMarket: ScannerMarket | null;
   perf: ReturnType<typeof useTodayPerformance>; autoPilot: AutoPilotEngine;
   balance: number | null; currency: string; isLoggedIn: boolean;
   logTrade: (text: string, sub: string, good: boolean) => void;
+  onLoadPreset: (preset: StrategyPreset) => void;
 }) {
   return (
     <div>
@@ -425,7 +440,57 @@ function SectionView({ section, onBack, topMarket, perf, autoPilot, balance, cur
       {section.id === "sniper" && <SniperSection topMarket={topMarket} balance={balance} currency={currency} isLoggedIn={isLoggedIn} logTrade={logTrade} />}
       {section.id === "autopilot" && <AutoPilotSection autoPilot={autoPilot} isLoggedIn={isLoggedIn} balance={balance} currency={currency} />}
       {section.id === "auto-exit" && <AutoExitSection autoPilot={autoPilot} />}
-      {(section.id === "strategies" || section.id === "smart-copy" || section.id === "one-click") && <ComingSoonSection section={section} />}
+      {section.id === "strategies" && <StrategiesSection onLoadPreset={onLoadPreset} />}
+      {(section.id === "smart-copy" || section.id === "one-click") && <ComingSoonSection section={section} />}
+    </div>
+  );
+}
+
+function StrategiesSection({ onLoadPreset }: { onLoadPreset: (preset: StrategyPreset) => void }) {
+  const { run, running, results, error } = useStrategyBacktest();
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="flex items-center gap-2 mb-1 font-semibold text-lg"><LineChartIcon className="w-5 h-5 text-primary" /> Strategy Presets</div>
+      <p className="text-sm text-muted-foreground mb-4">
+        Each "Run Backtest" fetches real historical ticks from Deriv's public API and replays the same rise/fall-skew
+        logic used live, with no lookahead. <strong>Past performance does not predict future results</strong> --
+        these are synthetic, effectively random-walk instruments, and this is a simplified directional-accuracy
+        check, not a full P&amp;L simulation (it doesn't model Deriv's real payout ratio).
+      </p>
+      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+
+      <div className="space-y-3">
+        {STRATEGY_PRESETS.map(preset => {
+          const result = results[preset.id];
+          const isRunning = running === preset.id;
+          return (
+            <div key={preset.id} className="rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="font-semibold">{preset.name}</div>
+                  <div className="text-xs text-muted-foreground">{preset.symbolLabel} · confidence ≥{preset.confidenceThreshold}% · {preset.durationTicks} ticks</div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => run(preset)} disabled={isRunning} className="text-sm px-3 py-1.5 rounded-lg border border-border hover:border-primary/50 disabled:opacity-40">
+                    {isRunning ? "Running..." : "Run Backtest"}
+                  </button>
+                  <button onClick={() => onLoadPreset(preset)} className="text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90">
+                    Load into AutoPilot
+                  </button>
+                </div>
+              </div>
+              {result && (
+                <div className="grid grid-cols-3 gap-3 text-sm mt-3 pt-3 border-t border-border/50">
+                  <Stat label="Sample" value={result.sampleWindowLabel} />
+                  <Stat label="Trades" value={String(result.trades)} />
+                  <Stat label="Win rate" value={result.winRatePct != null ? `${result.winRatePct}%` : "—"} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -434,7 +499,6 @@ function ComingSoonSection({ section }: { section: SectionDef }) {
   const { Icon, label, tagline } = section;
   const note: Partial<Record<SectionId, string>> = {
     "one-click": "Use Smart Sniper for now -- it's the same live signal with a one-tap execute button already wired to real trading.",
-    "strategies": "Would need honest, disclaimed backtest data to be worth shipping -- not built yet rather than shown with fabricated win rates.",
     "smart-copy": "Needs a real source of other traders' statistics to filter against. Nothing to copy from yet, so this isn't built.",
   };
   return (
