@@ -234,6 +234,22 @@ class APIBase {
             if (currentClientStore) {
                 const active_login_id = getAccountId();
                 if (active_login_id) {
+                    // Second occurrence of the exact bug fixed in
+                    // authorizeAndSubscribe() below: setWebSocketLoginId()
+                    // only ever wrote client_store.ws_login_id, never
+                    // client_store.loginid -- the field applyBalanceUpdate()
+                    // actually gates on. This path runs on every forced
+                    // reconnect (account switch, TMB flow, tab visibility
+                    // change), and ensureAuthorizedForTrading() only calls
+                    // authorizeAndSubscribe() once per api_base lifetime
+                    // (`if (api_base.is_authorized) return;`) -- so a
+                    // reconnect through here, after the first successful
+                    // authorize, could leave client_store.loginid stale for
+                    // the new connection with nothing left to re-sync it.
+                    // That's consistent with balance reading 0 after
+                    // switching between pages/tabs post-reconnect, not just
+                    // on first load.
+                    currentClientStore.setLoginId(active_login_id);
                     currentClientStore.setWebSocketLoginId(active_login_id);
                 }
             }
