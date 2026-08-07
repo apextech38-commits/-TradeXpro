@@ -711,7 +711,29 @@ export default class ClientStore {
                     throw initError;
                 }
 
+                this.setLoginId(active_login_id);
                 this.setWebSocketLoginId(active_login_id);
+
+                // THE actual reason balance stayed permanently at 0 after any
+                // account switch, on every page, for the rest of the session
+                // (traced 2026-08-07): this function wipes this.balance to
+                // '0' above and reconnects via api_base.init(true), but never
+                // re-ran the real authorize+balance flow. api_base.is_authorized
+                // (a separate flag from anything reset in this function) was
+                // already true from the first login, so
+                // ensureAuthorizedForTrading()'s guard --
+                // `if (api_base.is_authorized) return;` -- silently skipped
+                // authorizeAndSubscribe() on every purchase attempt from here
+                // on, for every page, not just Bulk Trader. Forcing it false
+                // here makes the next authorization attempt (whether
+                // triggered by this call below or the next purchase attempt)
+                // actually run instead of no-op.
+                (api_base as unknown as { is_authorized: boolean }).is_authorized = false;
+                try {
+                    await (api_base as unknown as { authorizeAndSubscribe: () => Promise<unknown> }).authorizeAndSubscribe();
+                } catch (authError) {
+                    ErrorLogger.error('ClientStore', 'Re-authorization after account switch failed', authError);
+                }
             }
         } catch (error) {
             ErrorLogger.error('ClientStore', 'WebSocket regeneration failed', error);
