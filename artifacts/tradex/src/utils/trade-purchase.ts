@@ -184,6 +184,36 @@ export const buyContractForUi = async ({ parameters, price, source }: TBuyContra
     return buy;
 };
 
+// Real position-close call, following the exact same conventions as
+// buyContractForUi above (auth guard, generic api.send() RPC, error
+// throwing via throwApiError). Deriv's `sell` API call with `price: 0`
+// means "close at current market price" -- there is no separate
+// "close at my chosen price" concept for these short-duration contracts.
+export const sellContractForUi = async (
+    contractId: number,
+    source: string
+): Promise<{ sold_for: number; transaction_id: number; contract_id: number }> => {
+    await ensureAuthorizedForTrading();
+    assertApiTokenScope('trade');
+
+    const sell_response = await (api_base.api as any).send({ sell: contractId, price: 0 });
+    throwApiError(sell_response, source);
+
+    const sell = sell_response?.sell;
+    if (!sell) {
+        throw new Error(`${source} did not receive a sell confirmation.`);
+    }
+
+    globalObserver.emit('contract.status', {
+        id: 'contract.sold',
+        data: sell.transaction_id,
+        sell,
+        source,
+    });
+
+    return sell;
+};
+
 const CLOSED_CONTRACT_STATUSES = new Set(['sold', 'won', 'lost']);
 const DEFAULT_SETTLEMENT_RECOVERY_CHECK_MS = 1000;
 const PROFIT_TABLE_RECOVERY_CHECK_MS = 5000;

@@ -354,7 +354,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   (t: Record<string, unknown>) =>
                     t.action_type === "buy" || t.action_type === "sell"
                 )
-                .slice(0, 5)
                 .map((t: Record<string, unknown>) => ({
                   transaction_id: t.transaction_id as number,
                   action_type: t.action_type as string,
@@ -365,6 +364,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   contract_id: (t.contract_id as number | undefined) ?? null,
                   pnl: (t.pnl as number | undefined) ?? null,
                 }));
+              // Kept all (up to the 50 requested above) rather than slicing
+              // to 5 client-side -- Smart Trader's Today's Performance panel
+              // needs the full set to compute real daily win-rate/profit,
+              // not just the handful the old "recent activity" display used.
               setRecentTrades(txns);
               break;
             }
