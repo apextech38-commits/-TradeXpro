@@ -193,11 +193,11 @@ export default function Dashboard() {
     : null;
 
   return (
-    <div className="min-h-full bg-background overflow-y-auto">
-      <div className="max-w-5xl mx-auto px-4 py-5 space-y-6">
+    <div className="h-full bg-background flex flex-col overflow-hidden">
+      <div className="max-w-5xl w-full mx-auto px-4 pt-5 flex flex-col flex-1 min-h-0">
 
         {/* ── Hero / Status banner ─────────────────────────────────────── */}
-        <div className="bg-card border border-border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="shrink-0 mb-6 bg-card border border-border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-2xl font-bold text-primary">TradeX</span>
@@ -240,7 +240,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Live ticker with sparklines ──────────────────────────────── */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="shrink-0 mb-6 grid grid-cols-3 gap-3">
           {TICKER_SYMBOLS.map(sym => {
             const p    = prices[sym.id];
             const prev = prevPrices[sym.id];
@@ -288,12 +288,12 @@ export default function Dashboard() {
         </div>
 
         {/* ── Recent Trades ────────────────────────────────────────────── */}
-        <div>
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+        <div className="flex flex-col flex-1 min-h-0 pb-5">
+          <h2 className="shrink-0 text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
             <Clock className="w-3 h-3" />
             Recent Trades
           </h2>
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="bg-card border border-border rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden">
             {!isLoggedIn ? (
               <div className="px-4 py-8 text-center">
                 <p className="text-sm text-muted-foreground">Log in to see your recent trade history.</p>
@@ -314,7 +314,7 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">No recent trades found for this account.</p>
               </div>
             ) : (
-              <div className="divide-y divide-border">
+              <div className="divide-y divide-border overflow-y-auto flex-1 min-h-0">
                 {recentTrades.map(trade => {
                   const isProfit = trade.amount > 0;
                   const contractType = parseContractType(trade.shortcode);
