@@ -8,7 +8,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import Navbar from "@/components/Navbar";
 import AIScanner from "@/components/AIScanner";
-import SmartTraderAIChat from "@/components/SmartTraderAIChat";
 import RiskDisclaimer from "@/components/risk-disclaimer/risk-disclaimer";
 import LoadingScreen from "@/components/LoadingScreen";
 import BotBuilderFrame from "@/pages/BotBuilderFrame";
@@ -80,7 +79,6 @@ function AppContent() {
       </main>
       <AIScanner />
       <RiskDisclaimer />
-      {location.pathname === "/smarttrader" && <SmartTraderAIChat />}
     </div>
   );
 }
