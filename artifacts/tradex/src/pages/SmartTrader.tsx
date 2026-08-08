@@ -12,6 +12,11 @@ import { useTodayPerformance } from "@/hooks/useTodayPerformance";
 import { useAutoExitMonitor } from "@/hooks/useAutoExitMonitor";
 import { useStrategyBacktest, STRATEGY_PRESETS, StrategyPreset } from "@/hooks/useStrategyBacktest";
 import { buyContractForUi } from "@/utils/trade-purchase";
+import {
+  broadcastTrade, settleTrade, isOptedIn, optIn, optOut, getOrCreateTraderId,
+  fetchTraders, fetchSignals, loadCopyFilters, saveCopyFilters,
+  CopyTrader, CopySignal, CopyFilters,
+} from "@/utils/copy-trading-client";
 
 // ── Section registry ─────────────────────────────────────────────────────────
 type SectionId =
@@ -185,7 +190,19 @@ function useAutoPilotEngine({
         setLastAction(`Bought ${marketAtTrigger.trend === "bullish" ? "Rise" : "Fall"} on ${marketAtTrigger.label} @ ${config.stake} ${currency}`);
         setLastError(null);
         if (buy.contract_id) {
-          monitor(Number(buy.contract_id), { takeProfitAmount: config.perTradeTakeProfit, stopLossAmount: config.perTradeStopLoss }, "SmartTrader AutoPilot");
+          if (isOptedIn()) {
+            broadcastTrade({
+              contractId: String(buy.contract_id), symbol: marketAtTrigger.id, symbolLabel: marketAtTrigger.label,
+              contractType: marketAtTrigger.trend === "bullish" ? "CALL" : "PUT", confidence: marketAtTrigger.confidence,
+              stake: config.stake, currency, durationTicks: CONTRACT_DURATION_TICKS,
+            });
+          }
+          monitor(
+            Number(buy.contract_id),
+            { takeProfitAmount: config.perTradeTakeProfit, stopLossAmount: config.perTradeStopLoss },
+            "SmartTrader AutoPilot",
+            (pnl, won) => settleTrade(String(buy.contract_id), pnl, won)
+          );
         }
       } catch (err) {
         setLastError(err instanceof Error ? err.message : "AutoPilot trade failed.");
@@ -371,6 +388,10 @@ function FeatureCard({ section, topMarket, perf, autoPilot, onOpen }: { section:
       status = "active";
       body = <p className="text-sm text-muted-foreground">Real backtests on historical ticks -- load a preset straight into AutoPilot.</p>;
       break;
+    case "smart-copy":
+      status = isOptedIn() ? "active" : "not-configured";
+      body = isOptedIn() ? <p className="text-sm text-muted-foreground">Sharing your trades. Set filters to auto-copy others.</p> : <p className="text-sm text-muted-foreground">Opt in to share, or set filters to copy real traders.</p>;
+      break;
     default:
       status = section.id === "one-click" && topMarket ? "active" : "coming-soon";
       body = <p className="text-sm text-muted-foreground">{section.tagline}</p>;
@@ -441,7 +462,8 @@ function SectionView({ section, onBack, topMarket, perf, autoPilot, balance, cur
       {section.id === "autopilot" && <AutoPilotSection autoPilot={autoPilot} isLoggedIn={isLoggedIn} balance={balance} currency={currency} />}
       {section.id === "auto-exit" && <AutoExitSection autoPilot={autoPilot} />}
       {section.id === "strategies" && <StrategiesSection onLoadPreset={onLoadPreset} />}
-      {(section.id === "smart-copy" || section.id === "one-click") && <ComingSoonSection section={section} />}
+      {section.id === "smart-copy" && <SmartCopySection isLoggedIn={isLoggedIn} balance={balance} currency={currency} logTrade={logTrade} />}
+      {section.id === "one-click" && <ComingSoonSection section={section} />}
     </div>
   );
 }
@@ -495,11 +517,163 @@ function StrategiesSection({ onLoadPreset }: { onLoadPreset: (preset: StrategyPr
   );
 }
 
+// ── Smart Copy: real opt-in, real leaderboard, real filtered signal feed,
+//    real client-side execution when auto-copy is armed ────────────────────
+function SmartCopySection({ isLoggedIn, balance, currency, logTrade }: {
+  isLoggedIn: boolean; balance: number | null; currency: string;
+  logTrade: (text: string, sub: string, good: boolean) => void;
+}) {
+  const [optedIn, setOptedInState] = useState(isOptedIn());
+  const [displayName, setDisplayName] = useState("");
+  const [optInBusy, setOptInBusy] = useState(false);
+  const [optInError, setOptInError] = useState<string | null>(null);
+
+  const [traders, setTraders] = useState<CopyTrader[] | null>(null);
+  const [tradersError, setTradersError] = useState<string | null>(null);
+
+  const [filters, setFilters] = useState<CopyFilters>(loadCopyFilters());
+  const [autoCopy, setAutoCopy] = useState(false);
+  const [signals, setSignals] = useState<CopySignal[]>([]);
+  const [copiesThisSession, setCopiesThisSession] = useState(0);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const copiedIdsRef = useRef<Set<string>>(new Set());
+  const { status: exitStatus, monitor } = useAutoExitMonitor();
+
+  // Real leaderboard, fetched once on open and on a slow refresh while viewing.
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => fetchTraders().then(t => !cancelled && (setTraders(t), setTradersError(null))).catch(e => !cancelled && setTradersError(e.message));
+    load();
+    const id = setInterval(load, 15000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  // Real signal polling + real execution when armed.
+  useEffect(() => {
+    if (!autoCopy) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const fresh = await fetchSignals(filters.minConfidence, filters.minWinRate);
+        if (cancelled) return;
+        setSignals(fresh);
+        if (copiesThisSession >= filters.maxTrades || balance == null) return;
+        const stake = Math.max(0, (balance * filters.maxRiskPct) / 100);
+        if (stake <= 0 || stake > balance) return;
+
+        for (const sig of fresh) {
+          if (copiedIdsRef.current.has(sig.contractId)) continue;
+          if (copiesThisSession >= filters.maxTrades) break;
+          copiedIdsRef.current.add(sig.contractId);
+          try {
+            const buy = await buyContractForUi({
+              parameters: { amount: stake, basis: "stake", contract_type: sig.contractType, currency, duration: CONTRACT_DURATION_TICKS, duration_unit: "t", symbol: sig.symbol },
+              price: stake,
+              source: "SmartTrader SmartCopy",
+            });
+            setCopiesThisSession(n => n + 1);
+            logTrade(`Copied ${sig.traderName}'s ${sig.contractType === "CALL" ? "Rise" : "Fall"} on ${sig.symbolLabel}`, `${stake.toFixed(2)} ${currency}`, true);
+            if (buy.contract_id) monitor(Number(buy.contract_id), {}, "SmartTrader SmartCopy");
+          } catch (err) {
+            setCopyError(err instanceof Error ? err.message : "Copy trade failed.");
+          }
+        }
+      } catch (err) {
+        if (!cancelled) setCopyError(err instanceof Error ? err.message : "Failed to load signals.");
+      }
+    };
+    tick();
+    const id = setInterval(tick, 4000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [autoCopy, filters, balance, currency, copiesThisSession]);
+
+  const handleOptIn = async () => {
+    setOptInBusy(true);
+    setOptInError(null);
+    try {
+      await optIn(displayName || "Trader");
+      setOptedInState(true);
+    } catch (err) {
+      setOptInError(err instanceof Error ? err.message : "Opt-in failed.");
+    } finally {
+      setOptInBusy(false);
+    }
+  };
+
+  if (!isLoggedIn) return <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">Log in to use Smart Copy.</div>;
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-5">
+      <div>
+        <div className="flex items-center gap-2 mb-1 font-semibold text-lg"><Users className="w-5 h-5 text-primary" /> Smart Copy</div>
+        <p className="text-sm text-muted-foreground">
+          Anonymous by design: your trader ID is a random identifier stored only in this browser, never your Deriv account. Sharing your trades only ever broadcasts trade outcomes, never your login or balance.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="font-semibold mb-2">Share my trades</div>
+        {optedIn ? (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-green-600 flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Sharing as anonymous trader ID {getOrCreateTraderId().slice(0, 8)}...</span>
+            <button onClick={() => { optOut(); setOptedInState(false); }} className="text-xs text-muted-foreground underline">Stop sharing</button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Display name (e.g. TrendTrader)" className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+            <button onClick={handleOptIn} disabled={optInBusy} className="text-sm px-3 py-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-40">{optInBusy ? "..." : "Start Sharing"}</button>
+          </div>
+        )}
+        {optInError && <p className="text-xs text-red-600 mt-2">{optInError}</p>}
+        <p className="text-xs text-muted-foreground mt-2">Your AutoPilot and Sniper trades broadcast automatically once you're sharing.</p>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="font-semibold mb-3">Real trader leaderboard</div>
+        {tradersError ? <p className="text-sm text-red-600">{tradersError}</p> :
+         traders == null ? <p className="text-sm text-muted-foreground">Loading...</p> :
+         traders.length === 0 ? <p className="text-sm text-muted-foreground">No traders with settled trades yet. This fills in as people opt in and trade.</p> : (
+          <div className="space-y-2">
+            {traders.map(t => (
+              <div key={t.traderId} className="flex items-center justify-between text-sm">
+                <span>{t.displayName}</span>
+                <span className="text-muted-foreground">{t.winRatePct}% win rate · {t.settledTrades} settled</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="font-semibold mb-3">Copy filters</div>
+        <LabeledInput label="Minimum confidence (%)" value={String(filters.minConfidence)} onChange={v => setFilters(f => ({ ...f, minConfidence: Number(v) }))} />
+        <LabeledInput label="Minimum trader win rate (%)" value={String(filters.minWinRate)} onChange={v => setFilters(f => ({ ...f, minWinRate: Number(v) }))} />
+        <LabeledInput label="Max risk per copy (% of your balance)" value={String(filters.maxRiskPct)} onChange={v => setFilters(f => ({ ...f, maxRiskPct: Number(v) }))} />
+        <LabeledInput label="Max copied trades" value={String(filters.maxTrades)} onChange={v => setFilters(f => ({ ...f, maxTrades: Number(v) }))} />
+        <button onClick={() => saveCopyFilters(filters)} className="text-xs text-primary underline mb-3">Save filters</button>
+
+        <label className="flex items-center gap-2 text-sm border-t border-border pt-3">
+          <input type="checkbox" checked={autoCopy} onChange={e => { setAutoCopy(e.target.checked); if (!e.target.checked) { setCopiesThisSession(0); copiedIdsRef.current.clear(); } }} />
+          Auto Copy matching signals
+        </label>
+        {autoCopy && (
+          <div className="mt-2 text-xs text-muted-foreground">
+            {copiesThisSession}/{filters.maxTrades} copied this session · watching {signals.length} live signal{signals.length === 1 ? "" : "s"}
+          </div>
+        )}
+        {copyError && <p className="text-xs text-red-600 mt-2">{copyError}</p>}
+        {exitStatus && !exitStatus.closedReason && (
+          <div className="text-xs bg-muted rounded-lg px-3 py-2 mt-2">Monitoring copied contract -- live P&L {exitStatus.livePnl.toFixed(2)} {currency}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ComingSoonSection({ section }: { section: SectionDef }) {
   const { Icon, label, tagline } = section;
   const note: Partial<Record<SectionId, string>> = {
     "one-click": "Use Smart Sniper for now -- it's the same live signal with a one-tap execute button already wired to real trading.",
-    "smart-copy": "Needs a real source of other traders' statistics to filter against. Nothing to copy from yet, so this isn't built.",
   };
   return (
     <div className="rounded-xl border border-border bg-card p-8 text-center">
@@ -538,7 +712,16 @@ function SniperSection({ topMarket, balance, currency, isLoggedIn, logTrade }: {
         source: "SmartTrader Sniper",
       });
       logTrade(`Sniper bought ${topMarket.trend === "bullish" ? "Rise" : "Fall"} on ${topMarket.label}`, `${stakeNum} ${currency}`, true);
-      if (buy.contract_id) monitor(Number(buy.contract_id), {}, "SmartTrader Sniper");
+      if (buy.contract_id) {
+        if (isOptedIn()) {
+          broadcastTrade({
+            contractId: String(buy.contract_id), symbol: topMarket.id, symbolLabel: topMarket.label,
+            contractType: topMarket.trend === "bullish" ? "CALL" : "PUT", confidence: topMarket.confidence,
+            stake: stakeNum, currency, durationTicks: CONTRACT_DURATION_TICKS,
+          });
+        }
+        monitor(Number(buy.contract_id), {}, "SmartTrader Sniper", (pnl, won) => settleTrade(String(buy.contract_id), pnl, won));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Trade failed.");
     } finally {

@@ -25,7 +25,7 @@ export function useAutoExitMonitor() {
   const [status, setStatus] = useState<AutoExitStatus | null>(null);
   const closingRef = useRef(false);
 
-  const monitor = useCallback((contractId: number, rules: AutoExitRules, source: string) => {
+  const monitor = useCallback((contractId: number, rules: AutoExitRules, source: string, onSettled?: (pnl: number, won: boolean) => void) => {
     closingRef.current = false;
     setStatus({ contractId, livePnl: 0, closing: false, closedReason: null, error: null });
 
@@ -64,11 +64,13 @@ export function useAutoExitMonitor() {
         }
       },
     }).then(finalSnapshot => {
+      const finalPnl = Number(finalSnapshot?.profit ?? 0);
       setStatus(prev =>
         prev && prev.contractId === contractId && !prev.closedReason
-          ? { ...prev, closing: false, closedReason: "settled", livePnl: Number(finalSnapshot?.profit ?? prev.livePnl) }
+          ? { ...prev, closing: false, closedReason: "settled", livePnl: finalPnl }
           : prev
       );
+      onSettled?.(finalPnl, finalPnl >= 0);
     });
 
     return () => controller.abort();
