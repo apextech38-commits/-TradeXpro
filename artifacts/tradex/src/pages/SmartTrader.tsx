@@ -71,7 +71,7 @@ export default function SmartTrader() {
     });
   }, [topMarket?.label, topMarket?.trend]);
 
-  const autoPilot = useAutoPilotEngine({ topMarket, perf, balance, currency, isLoggedIn, loginid: activeAccount?.account ?? null });
+  const autoPilot = useAutoPilotEngine({ topMarket, perf, balance, currency, isLoggedIn, loginid: activeAccount?.account ?? null, ensureScanning: () => setScanning(true) });
   const [tradeLog, setTradeLog] = useState<{ time: number; text: string; sub: string; good: boolean }[]>([]);
   const logTrade = (text: string, sub: string, good: boolean) =>
     setTradeLog(prev => [{ time: Date.now(), text, sub, good }, ...prev].slice(0, 20));
@@ -140,7 +140,7 @@ const DEFAULT_AUTOPILOT_CONFIG: AutoPilotConfig = {
 };
 
 function useAutoPilotEngine({
-  topMarket, perf, balance, currency, isLoggedIn, loginid,
+  topMarket, perf, balance, currency, isLoggedIn, loginid, ensureScanning,
 }: {
   topMarket: ScannerMarket | null;
   perf: ReturnType<typeof useTodayPerformance>;
@@ -148,6 +148,7 @@ function useAutoPilotEngine({
   currency: string;
   isLoggedIn: boolean;
   loginid: string | null;
+  ensureScanning: () => void;
 }) {
   const [config, setConfigState] = useState<AutoPilotConfig>(() => {
     try {
@@ -248,7 +249,7 @@ function useAutoPilotEngine({
 
   return {
     config, setConfig, running,
-    start: () => { setLastError(null); setTradesThisSession(0); setRunning(true); },
+    start: () => { setLastError(null); setTradesThisSession(0); setRunning(true); ensureScanning(); },
     stop: () => setRunning(false),
     tradesThisSession, lastError, lastAction, stopReasons, exitStatus,
   };
@@ -501,7 +502,7 @@ function SectionView({ section, onBack, topMarket, perf, autoPilot, balance, cur
       {section.id === "risk-manager" && <RiskManagerSection />}
       {section.id === "goal-mode" && <GoalModeSection perf={perf} />}
       {section.id === "sniper" && <SniperSection topMarket={topMarket} balance={balance} currency={currency} isLoggedIn={isLoggedIn} logTrade={logTrade} />}
-      {section.id === "autopilot" && <AutoPilotSection autoPilot={autoPilot} isLoggedIn={isLoggedIn} balance={balance} currency={currency} />}
+      {section.id === "autopilot" && <AutoPilotSection autoPilot={autoPilot} isLoggedIn={isLoggedIn} balance={balance} currency={currency} topMarket={topMarket} />}
       {section.id === "auto-exit" && <AutoExitSection autoPilot={autoPilot} />}
       {section.id === "strategies" && <StrategiesSection onLoadPreset={onLoadPreset} />}
       {section.id === "smart-copy" && <SmartCopySection isLoggedIn={isLoggedIn} balance={balance} currency={currency} logTrade={logTrade} />}
@@ -837,7 +838,7 @@ function SniperSection({ topMarket, balance, currency, isLoggedIn, logTrade }: {
 }
 
 // ── AutoPilot: real config + real hard-capped execution loop ─────────────────
-function AutoPilotSection({ autoPilot, isLoggedIn, balance, currency }: { autoPilot: AutoPilotEngine; isLoggedIn: boolean; balance: number | null; currency: string }) {
+function AutoPilotSection({ autoPilot, isLoggedIn, balance, currency, topMarket }: { autoPilot: AutoPilotEngine; isLoggedIn: boolean; balance: number | null; currency: string; topMarket: ScannerMarket | null }) {
   const { config, setConfig, running, start, stop, tradesThisSession, lastError, lastAction, stopReasons, exitStatus } = autoPilot;
   const [form, setForm] = useState(config);
   useEffect(() => { if (!running) setForm(config); }, [config, running]);
@@ -861,6 +862,20 @@ function AutoPilotSection({ autoPilot, isLoggedIn, balance, currency }: { autoPi
           <div className="flex items-center justify-center gap-2 text-green-600 font-semibold mb-3">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Running
           </div>
+          {!topMarket ? (
+            <div className="text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-3 py-2 mb-3 flex items-center justify-center gap-2">
+              <Activity className="w-3.5 h-3.5 animate-pulse shrink-0" />
+              Waiting for live scanner data before it can evaluate a trade -- this can take a few seconds after starting.
+            </div>
+          ) : !config.allowedMarkets.includes(topMarket.id) ? (
+            <div className="text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-3 py-2 mb-3">
+              Live signal is on {topMarket.label}, which isn't in your allowed markets -- won't trade until an allowed market signals.
+            </div>
+          ) : topMarket.trend === "flat" || topMarket.confidence < config.confidenceThreshold ? (
+            <div className="text-xs bg-muted rounded-lg px-3 py-2 mb-3">
+              Watching {topMarket.label} -- {topMarket.confidence}% confidence, below your {config.confidenceThreshold}% threshold. Waiting for a stronger signal.
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 gap-3 text-sm mb-4">
             <Stat label="Trades" value={`${tradesThisSession}/${config.maxTrades}`} />
             <Stat label="Stake per trade" value={`${config.stake} ${currency}`} />
