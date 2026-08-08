@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/context/AuthContext";
@@ -77,6 +77,9 @@ function AppContent() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
+      {location.pathname === "/smarttrader" && (
+        <style>{`.fixed.bottom-6.right-6.z-40{display:none!important}`}</style>
+      )}
       <AIScanner />
       <RiskDisclaimer />
     </div>
