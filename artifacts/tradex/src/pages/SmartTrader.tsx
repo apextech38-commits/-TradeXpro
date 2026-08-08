@@ -17,6 +17,7 @@ import {
   fetchTraders, fetchSignals, loadCopyFilters, saveCopyFilters,
   CopyTrader, CopySignal, CopyFilters,
 } from "@/utils/copy-trading-client";
+import { loadUserSettings, saveUserSettings, logJournalEntry, settleJournalEntry, fetchJournal, JournalEntry } from "@/utils/user-data-client";
 
 // ── Section registry ─────────────────────────────────────────────────────────
 type SectionId =
@@ -58,7 +59,7 @@ export default function SmartTrader() {
   const [aiOrbOpen, setAiOrbOpen] = useState(false);
   const { markets, topMarket } = useLiveScanner(scanning);
   const perf = useTodayPerformance();
-  const { isLoggedIn, wsConnected, balance, currency } = useAuth();
+  const { isLoggedIn, wsConnected, balance, currency, activeAccount } = useAuth();
 
   const [signalLog, setSignalLog] = useState<{ time: number; market: string; trend: ScannerMarket["trend"]; confidence: number }[]>([]);
   useEffect(() => {
@@ -70,10 +71,21 @@ export default function SmartTrader() {
     });
   }, [topMarket?.label, topMarket?.trend]);
 
-  const autoPilot = useAutoPilotEngine({ topMarket, perf, balance, currency, isLoggedIn });
+  const autoPilot = useAutoPilotEngine({ topMarket, perf, balance, currency, isLoggedIn, loginid: activeAccount?.account ?? null });
   const [tradeLog, setTradeLog] = useState<{ time: number; text: string; sub: string; good: boolean }[]>([]);
   const logTrade = (text: string, sub: string, good: boolean) =>
     setTradeLog(prev => [{ time: Date.now(), text, sub, good }, ...prev].slice(0, 20));
+
+  // Real, persisted trade journal -- survives a page refresh, unlike tradeLog
+  // above (in-memory only, cleared the moment the tab reloads). Refetched
+  // after every trade this session so the Activity feed reflects reality
+  // even if the user reloads mid-session.
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const loginid = activeAccount?.account ?? null;
+  useEffect(() => {
+    if (!loginid) return;
+    fetchJournal(loginid, 20).then(setJournalEntries).catch(() => {});
+  }, [loginid, tradeLog.length]);
 
   const activeSection = SECTIONS.find(s => s.id === active) ?? null;
 
@@ -97,7 +109,7 @@ export default function SmartTrader() {
         ) : (
           <DashboardView
             onSelect={setActive} scanning={scanning} setScanning={setScanning} markets={markets} topMarket={topMarket}
-            perf={perf} signalLog={signalLog} tradeLog={tradeLog} isLoggedIn={isLoggedIn} wsConnected={wsConnected} autoPilot={autoPilot}
+            perf={perf} signalLog={signalLog} tradeLog={tradeLog} journalEntries={journalEntries} isLoggedIn={isLoggedIn} wsConnected={wsConnected} autoPilot={autoPilot}
           />
         )}
       </div>
@@ -128,13 +140,14 @@ const DEFAULT_AUTOPILOT_CONFIG: AutoPilotConfig = {
 };
 
 function useAutoPilotEngine({
-  topMarket, perf, balance, currency, isLoggedIn,
+  topMarket, perf, balance, currency, isLoggedIn, loginid,
 }: {
   topMarket: ScannerMarket | null;
   perf: ReturnType<typeof useTodayPerformance>;
   balance: number | null;
   currency: string;
   isLoggedIn: boolean;
+  loginid: string | null;
 }) {
   const [config, setConfigState] = useState<AutoPilotConfig>(() => {
     try {
@@ -142,10 +155,21 @@ function useAutoPilotEngine({
       return raw ? { ...DEFAULT_AUTOPILOT_CONFIG, ...JSON.parse(raw) } : DEFAULT_AUTOPILOT_CONFIG;
     } catch { return DEFAULT_AUTOPILOT_CONFIG; }
   });
-  const setConfig = (c: AutoPilotConfig) => {
+  const setConfig = (c: AutoPilotConfig, skipRemote?: boolean) => {
     setConfigState(c);
     localStorage.setItem(AUTOPILOT_KEY, JSON.stringify(c));
+    if (!skipRemote && loginid) saveUserSettings(loginid, { autopilotConfig: c });
   };
+
+  // Cross-device sync: localStorage renders instantly; if D1 has a real,
+  // more-recently-saved config for this account, adopt it once it arrives
+  // (e.g. configured on desktop, opening on mobile picks it up).
+  useEffect(() => {
+    if (!loginid) return;
+    loadUserSettings(loginid).then(remote => {
+      if (remote?.autopilotConfig) setConfigState(prev => ({ ...prev, ...(remote.autopilotConfig as Partial<AutoPilotConfig>) }));
+    });
+  }, [loginid]);
 
   const [running, setRunning] = useState(false);
   const [tradesThisSession, setTradesThisSession] = useState(0);
@@ -190,18 +214,26 @@ function useAutoPilotEngine({
         setLastAction(`Bought ${marketAtTrigger.trend === "bullish" ? "Rise" : "Fall"} on ${marketAtTrigger.label} @ ${config.stake} ${currency}`);
         setLastError(null);
         if (buy.contract_id) {
+          const contractIdStr = String(buy.contract_id);
           if (isOptedIn()) {
             broadcastTrade({
-              contractId: String(buy.contract_id), symbol: marketAtTrigger.id, symbolLabel: marketAtTrigger.label,
+              contractId: contractIdStr, symbol: marketAtTrigger.id, symbolLabel: marketAtTrigger.label,
               contractType: marketAtTrigger.trend === "bullish" ? "CALL" : "PUT", confidence: marketAtTrigger.confidence,
               stake: config.stake, currency, durationTicks: CONTRACT_DURATION_TICKS,
+            });
+          }
+          if (loginid) {
+            logJournalEntry({
+              loginid, source: "AutoPilot", contractId: contractIdStr, symbol: marketAtTrigger.id, symbolLabel: marketAtTrigger.label,
+              contractType: marketAtTrigger.trend === "bullish" ? "CALL" : "PUT", confidence: marketAtTrigger.confidence,
+              stake: config.stake, currency,
             });
           }
           monitor(
             Number(buy.contract_id),
             { takeProfitAmount: config.perTradeTakeProfit, stopLossAmount: config.perTradeStopLoss },
             "SmartTrader AutoPilot",
-            (pnl, won) => settleTrade(String(buy.contract_id), pnl, won)
+            (pnl, won) => { settleTrade(contractIdStr, pnl, won); if (loginid) settleJournalEntry(contractIdStr, pnl, won); }
           );
         }
       } catch (err) {
@@ -212,7 +244,7 @@ function useAutoPilotEngine({
         busyRef.current = false;
       }
     })();
-  }, [running, topMarket?.id, topMarket?.trend, topMarket?.confidence, config, isLoggedIn, stopReasons.length, currency]);
+  }, [running, topMarket?.id, topMarket?.trend, topMarket?.confidence, config, isLoggedIn, stopReasons.length, currency, loginid]);
 
   return {
     config, setConfig, running,
@@ -225,7 +257,7 @@ type AutoPilotEngine = ReturnType<typeof useAutoPilotEngine>;
 
 // ── Dashboard shell ───────────────────────────────────────────────────────────
 function DashboardView({
-  onSelect, scanning, setScanning, markets, topMarket, perf, signalLog, tradeLog, isLoggedIn, wsConnected, autoPilot,
+  onSelect, scanning, setScanning, markets, topMarket, perf, signalLog, tradeLog, journalEntries, isLoggedIn, wsConnected, autoPilot,
 }: {
   onSelect: (id: SectionId) => void;
   scanning: boolean; setScanning: (v: boolean) => void;
@@ -233,6 +265,7 @@ function DashboardView({
   perf: ReturnType<typeof useTodayPerformance>;
   signalLog: { time: number; market: string; trend: ScannerMarket["trend"]; confidence: number }[];
   tradeLog: { time: number; text: string; sub: string; good: boolean }[];
+  journalEntries: JournalEntry[];
   isLoggedIn: boolean; wsConnected: boolean; autoPilot: AutoPilotEngine;
 }) {
   const navigate = useNavigate();
@@ -306,7 +339,7 @@ function DashboardView({
 
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="flex items-center gap-2 mb-3 font-semibold"><History className="w-4 h-4 text-primary" /> Activity</div>
-        <Timeline signalLog={signalLog} settledTrades={perf.settledTrades} tradeLog={tradeLog} scanning={scanning} />
+        <Timeline signalLog={signalLog} settledTrades={perf.settledTrades} journalEntries={journalEntries} scanning={scanning} />
       </div>
     </div>
   );
@@ -416,16 +449,25 @@ function Row({ k, v }: { k: string; v: string }) {
   return <div className="flex justify-between text-sm"><span className="text-muted-foreground">{k}</span><span className="font-medium">{v}</span></div>;
 }
 
-function Timeline({ signalLog, settledTrades, tradeLog, scanning }: {
+function Timeline({ signalLog, settledTrades, journalEntries, scanning }: {
   signalLog: { time: number; market: string; trend: ScannerMarket["trend"]; confidence: number }[];
   settledTrades: ReturnType<typeof useTodayPerformance>["settledTrades"];
-  tradeLog: { time: number; text: string; sub: string; good: boolean }[];
+  journalEntries: JournalEntry[];
   scanning: boolean;
 }) {
+  // journalEntries is the real, persisted record (survives a refresh) of
+  // every AutoPilot/Sniper/SmartCopy trade -- used here instead of a
+  // separate in-memory session log so the Activity feed reflects reality
+  // even after a reload, not just what happened since the tab last loaded.
   const events = [
     ...signalLog.map(s => ({ time: s.time, text: `${s.trend === "bullish" ? "Bullish" : s.trend === "bearish" ? "Bearish" : "Flat"} skew on ${s.market}`, sub: `${s.confidence}%`, good: null as boolean | null })),
     ...settledTrades.map(t => ({ time: t.transaction_time * 1000, text: (t.pnl ?? 0) >= 0 ? "Trade won" : "Trade lost", sub: `${(t.pnl ?? 0) >= 0 ? "+" : ""}${(t.pnl ?? 0).toFixed(2)}`, good: (t.pnl ?? 0) >= 0 })),
-    ...tradeLog.map(t => ({ time: t.time, text: t.text, sub: t.sub, good: t.good })),
+    ...journalEntries.map(j => ({
+      time: j.settledAt ?? j.openedAt,
+      text: j.settledAt != null ? `${j.source}: ${j.won ? "Trade won" : "Trade lost"} on ${j.symbolLabel}` : `${j.source} bought ${j.contractType === "CALL" ? "Rise" : "Fall"} on ${j.symbolLabel}`,
+      sub: j.pnl != null ? `${j.pnl >= 0 ? "+" : ""}${j.pnl.toFixed(2)}` : `${j.stake} ${j.currency}`,
+      good: j.won != null ? j.won === 1 : null,
+    })),
   ].sort((a, b) => b.time - a.time).slice(0, 15);
 
   if (events.length === 0) return <p className="text-sm text-muted-foreground">{scanning ? "Watching for real signal and trade activity..." : "Start Smart Scan or place a trade to see activity here."}</p>;
@@ -538,6 +580,8 @@ function SmartCopySection({ isLoggedIn, balance, currency, logTrade }: {
   const [copyError, setCopyError] = useState<string | null>(null);
   const copiedIdsRef = useRef<Set<string>>(new Set());
   const { status: exitStatus, monitor } = useAutoExitMonitor();
+  const { activeAccount } = useAuth();
+  const loginid = activeAccount?.account ?? null;
 
   // Real leaderboard, fetched once on open and on a slow refresh while viewing.
   useEffect(() => {
@@ -573,7 +617,16 @@ function SmartCopySection({ isLoggedIn, balance, currency, logTrade }: {
             });
             setCopiesThisSession(n => n + 1);
             logTrade(`Copied ${sig.traderName}'s ${sig.contractType === "CALL" ? "Rise" : "Fall"} on ${sig.symbolLabel}`, `${stake.toFixed(2)} ${currency}`, true);
-            if (buy.contract_id) monitor(Number(buy.contract_id), {}, "SmartTrader SmartCopy");
+            if (buy.contract_id) {
+              const contractIdStr = String(buy.contract_id);
+              if (loginid) {
+                logJournalEntry({
+                  loginid, source: "SmartCopy", contractId: contractIdStr, symbol: sig.symbol, symbolLabel: sig.symbolLabel,
+                  contractType: sig.contractType, confidence: sig.confidence, stake, currency,
+                });
+              }
+              monitor(Number(buy.contract_id), {}, "SmartTrader SmartCopy", (pnl, won) => { if (loginid) settleJournalEntry(contractIdStr, pnl, won); });
+            }
           } catch (err) {
             setCopyError(err instanceof Error ? err.message : "Copy trade failed.");
           }
@@ -585,7 +638,7 @@ function SmartCopySection({ isLoggedIn, balance, currency, logTrade }: {
     tick();
     const id = setInterval(tick, 4000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [autoCopy, filters, balance, currency, copiesThisSession]);
+  }, [autoCopy, filters, balance, currency, copiesThisSession, loginid]);
 
   const handleOptIn = async () => {
     setOptInBusy(true);
@@ -697,6 +750,8 @@ function SniperSection({ topMarket, balance, currency, isLoggedIn, logTrade }: {
   const [error, setError] = useState<string | null>(null);
   const firedForRef = useRef<string | null>(null);
   const { status: exitStatus, monitor } = useAutoExitMonitor();
+  const { activeAccount } = useAuth();
+  const loginid = activeAccount?.account ?? null;
 
   const stakeNum = Number(stake);
   const validStake = Number.isFinite(stakeNum) && stakeNum > 0;
@@ -713,14 +768,21 @@ function SniperSection({ topMarket, balance, currency, isLoggedIn, logTrade }: {
       });
       logTrade(`Sniper bought ${topMarket.trend === "bullish" ? "Rise" : "Fall"} on ${topMarket.label}`, `${stakeNum} ${currency}`, true);
       if (buy.contract_id) {
+        const contractIdStr = String(buy.contract_id);
         if (isOptedIn()) {
           broadcastTrade({
-            contractId: String(buy.contract_id), symbol: topMarket.id, symbolLabel: topMarket.label,
+            contractId: contractIdStr, symbol: topMarket.id, symbolLabel: topMarket.label,
             contractType: topMarket.trend === "bullish" ? "CALL" : "PUT", confidence: topMarket.confidence,
             stake: stakeNum, currency, durationTicks: CONTRACT_DURATION_TICKS,
           });
         }
-        monitor(Number(buy.contract_id), {}, "SmartTrader Sniper", (pnl, won) => settleTrade(String(buy.contract_id), pnl, won));
+        if (loginid) {
+          logJournalEntry({
+            loginid, source: "Sniper", contractId: contractIdStr, symbol: topMarket.id, symbolLabel: topMarket.label,
+            contractType: topMarket.trend === "bullish" ? "CALL" : "PUT", confidence: topMarket.confidence, stake: stakeNum, currency,
+          });
+        }
+        monitor(Number(buy.contract_id), {}, "SmartTrader Sniper", (pnl, won) => { settleTrade(contractIdStr, pnl, won); if (loginid) settleJournalEntry(contractIdStr, pnl, won); });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Trade failed.");
@@ -885,11 +947,30 @@ interface GoalSettings { target: number; lossLimit: number; maxTrades: number; }
 const GOAL_KEY = "smart-trader-goal";
 
 function useGoalMode() {
+  const { activeAccount } = useAuth();
+  const loginid = activeAccount?.account ?? null;
+
   const [settings, setSettings] = useState<GoalSettings | null>(() => {
     try { const raw = localStorage.getItem(GOAL_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
   });
-  const save = (s: GoalSettings) => { localStorage.setItem(GOAL_KEY, JSON.stringify(s)); setSettings(s); };
-  const clear = () => { localStorage.removeItem(GOAL_KEY); setSettings(null); };
+
+  useEffect(() => {
+    if (!loginid) return;
+    loadUserSettings(loginid).then(remote => {
+      if (remote?.goalSettings) setSettings(remote.goalSettings as GoalSettings);
+    });
+  }, [loginid]);
+
+  const save = (s: GoalSettings) => {
+    localStorage.setItem(GOAL_KEY, JSON.stringify(s));
+    setSettings(s);
+    if (loginid) saveUserSettings(loginid, { goalSettings: s });
+  };
+  const clear = () => {
+    localStorage.removeItem(GOAL_KEY);
+    setSettings(null);
+    if (loginid) saveUserSettings(loginid, { goalSettings: null });
+  };
   return { settings, save, clear };
 }
 
