@@ -94,6 +94,15 @@ const assertSufficientDemoBalance = (required_amount: number, source: string) =>
         | undefined;
 
     const loginid = client_store?.loginid;
+    console.log('[assertSufficientDemoBalance] DIAGNOSTIC', {
+        source,
+        required_amount,
+        'client_store.loginid': client_store?.loginid,
+        'client_store.balance': (client_store as any)?.balance,
+        'client_store.currency': client_store?.currency,
+        getDisplayBalanceAmount_result: client_store?.getDisplayBalanceAmount?.(loginid),
+        hasSufficientDemoBalance_result: client_store?.hasSufficientDemoBalance?.(required_amount, loginid),
+    });
     if (!client_store?.hasSufficientDemoBalance?.(required_amount, loginid)) {
         const currency = client_store?.getAccountCurrency?.(loginid) || client_store?.currency || 'USD';
         const available_balance = Number(client_store?.getDisplayBalanceAmount?.(loginid) ?? 0);
