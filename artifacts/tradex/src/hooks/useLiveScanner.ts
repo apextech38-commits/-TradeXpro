@@ -1,29 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 
-// Real, public-data market scanner. No fabricated numbers: every field here
-// is computed directly from the live tick stream. "Confidence" is nothing
-// more than how lopsided the recent rise/fall count is -- a simple, honest
-// heuristic, not a predictive model. Volatility/Boom/Crash indices are
-// synthetic random-walk instruments, so this should never be presented as
-// more than "recent short-term skew."
+// Real, public-data market scanner covering every market Deriv reports as
+// currently open -- fetched live via active_symbols, not a hardcoded list.
+// No fabricated numbers: every field here is computed directly from the
+// live tick stream. "Confidence" is nothing more than how lopsided the
+// recent rise/fall count is -- a simple, honest heuristic, not a predictive
+// model. Synthetic indices are random-walk instruments by design, so this
+// should never be presented as more than "recent short-term skew." Real
+// (forex/stocks/commodities) markets carry the same caveat plus normal
+// market unpredictability -- treat this the same way regardless of market type.
 const WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
 const TICK_HISTORY_COUNT = 60; // rolling window per symbol
-
-const SCANNED_SYMBOLS = [
-  { id: "R_100",     label: "Volatility 100" },
-  { id: "R_75",      label: "Volatility 75" },
-  { id: "BOOM500N",  label: "Boom 500" },
-  { id: "CRASH300N", label: "Crash 300" },
-] as const;
 
 export interface ScannerMarket {
   id: string;
   label: string;
+  market: string; // Deriv's market category (synthetic_index, forex, indices, commodities, ...)
   price: number | null;
-  risePct: number;   // 0-100, share of up-ticks in the rolling window
-  fallPct: number;   // 0-100, share of down-ticks in the rolling window
+  risePct: number;
+  fallPct: number;
   trend: "bullish" | "bearish" | "flat";
-  confidence: number; // 0-100, how lopsided rise vs fall is -- not a win probability
+  confidence: number;
   ticksSeen: number;
   connected: boolean;
 }
@@ -39,45 +36,85 @@ function computeRiseFall(prices: number[]) {
 }
 
 export function useLiveScanner(enabled: boolean) {
-  const [markets, setMarkets] = useState<Record<string, ScannerMarket>>(() =>
-    Object.fromEntries(
-      SCANNED_SYMBOLS.map(s => [
-        s.id,
-        { id: s.id, label: s.label, price: null, risePct: 50, fallPct: 50, trend: "flat" as const, confidence: 0, ticksSeen: 0, connected: false },
-      ])
-    )
-  );
+  const [markets, setMarkets] = useState<Record<string, ScannerMarket>>({});
+  const [symbolsLoading, setSymbolsLoading] = useState(false);
+  const [symbolsError, setSymbolsError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const pricesRef = useRef<Record<string, number[]>>(
-    Object.fromEntries(SCANNED_SYMBOLS.map(s => [s.id, []]))
-  );
+  const pricesRef = useRef<Record<string, number[]>>({});
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      setMarkets({});
+      return;
+    }
     let cancelled = false;
+    setSymbolsLoading(true);
+    setSymbolsError(null);
+    pricesRef.current = {};
+
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
     ws.onopen = () => {
       if (cancelled) return;
-      SCANNED_SYMBOLS.forEach(s => {
-        ws.send(JSON.stringify({
-          ticks_history: s.id,
-          adjust_start_time: 1,
-          count: TICK_HISTORY_COUNT,
-          end: "latest",
-          style: "ticks",
-          subscribe: 1,
-        }));
-      });
+      ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
     };
 
     ws.onmessage = (event) => {
       if (cancelled) return;
       try {
         const msg = JSON.parse(event.data);
+
+        if (msg.msg_type === "active_symbols") {
+          setSymbolsLoading(false);
+          if (msg.error) {
+            setSymbolsError(msg.error.message || "Failed to load market list.");
+            return;
+          }
+          const list: any[] = msg.active_symbols ?? [];
+          // Only markets Deriv itself reports as currently tradeable --
+          // subscribing to a closed market would just sit at "Searching..."
+          // forever and misleadingly imply it's live.
+          const open = list.filter(s => s.exchange_is_open === 1);
+
+          const initial: Record<string, ScannerMarket> = {};
+          open.forEach(s => {
+            initial[s.symbol] = {
+              id: s.symbol, label: s.display_name, market: s.market,
+              price: null, risePct: 50, fallPct: 50, trend: "flat", confidence: 0, ticksSeen: 0, connected: false,
+            };
+            pricesRef.current[s.symbol] = [];
+          });
+          setMarkets(initial);
+
+          // Subscribe to every open symbol. Errors on an individual symbol
+          // (e.g. one this account/region isn't entitled to trade) are
+          // caught per-symbol below and just drop that one market rather
+          // than breaking the scan.
+          open.forEach(s => {
+            ws.send(JSON.stringify({
+              ticks_history: s.symbol, adjust_start_time: 1, count: TICK_HISTORY_COUNT,
+              end: "latest", style: "ticks", subscribe: 1,
+            }));
+          });
+          return;
+        }
+
         const symbol: string | undefined = msg.echo_req?.ticks_history;
         if (!symbol) return;
+
+        if (msg.error) {
+          // This specific symbol isn't subscribable (entitlement/region
+          // restriction, etc.) -- drop it from the scan rather than leaving
+          // it stuck at "Searching..." with no path forward.
+          setMarkets(prev => {
+            const next = { ...prev };
+            delete next[symbol];
+            return next;
+          });
+          delete pricesRef.current[symbol];
+          return;
+        }
 
         if (msg.msg_type === "history" && Array.isArray(msg.history?.prices)) {
           pricesRef.current[symbol] = msg.history.prices.map((p: string) => Number(p));
@@ -95,26 +132,23 @@ export function useLiveScanner(enabled: boolean) {
         const skew = Math.abs(r - f);
         const trend: ScannerMarket["trend"] = skew < 8 ? "flat" : r > f ? "bullish" : "bearish";
 
-        setMarkets(prev => ({
-          ...prev,
-          [symbol]: {
-            ...prev[symbol],
-            price: prices.length ? prices[prices.length - 1] : null,
-            risePct: r,
-            fallPct: f,
-            trend,
-            confidence: Math.round(50 + skew / 2), // 50 (no skew) .. 100 (maximally lopsided)
-            ticksSeen: prices.length,
-            connected: true,
-          },
-        }));
+        setMarkets(prev => {
+          if (!prev[symbol]) return prev; // dropped (e.g. errored) since this update was queued
+          return {
+            ...prev,
+            [symbol]: {
+              ...prev[symbol],
+              price: prices.length ? prices[prices.length - 1] : null,
+              risePct: r, fallPct: f, trend,
+              confidence: Math.round(50 + skew / 2),
+              ticksSeen: prices.length,
+              connected: true,
+            },
+          };
+        });
       } catch {
         // ignore malformed frames
       }
-    };
-
-    ws.onerror = () => {
-      if (cancelled) return;
     };
 
     ws.onclose = () => {
@@ -131,12 +165,10 @@ export function useLiveScanner(enabled: boolean) {
     };
   }, [enabled]);
 
-  const marketList = SCANNED_SYMBOLS.map(s => markets[s.id]);
-  // The "top" market for the hero panel: whichever has seen enough ticks to
-  // be meaningful and has the most lopsided (highest-confidence) skew.
+  const marketList = Object.values(markets);
   const topMarket = marketList
     .filter(m => m.ticksSeen >= 10)
     .sort((a, b) => b.confidence - a.confidence)[0] ?? null;
 
-  return { markets: marketList, topMarket };
+  return { markets: marketList, topMarket, symbolsLoading, symbolsError };
 }

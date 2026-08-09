@@ -57,7 +57,7 @@ export default function SmartTrader() {
   const [active, setActive] = useState<SectionId | null>(null);
   const [scanning, setScanning] = useState(false);
   const [aiOrbOpen, setAiOrbOpen] = useState(false);
-  const { markets, topMarket } = useLiveScanner(scanning);
+  const { markets, topMarket, symbolsLoading, symbolsError } = useLiveScanner(scanning);
   const perf = useTodayPerformance();
   const { isLoggedIn, wsConnected, balance, currency, activeAccount } = useAuth();
 
@@ -104,12 +104,13 @@ export default function SmartTrader() {
           <SectionView
             section={activeSection} onBack={() => setActive(null)} topMarket={topMarket} perf={perf}
             autoPilot={autoPilot} balance={balance} currency={currency} isLoggedIn={isLoggedIn} logTrade={logTrade}
-            onLoadPreset={handleLoadPreset}
+            onLoadPreset={handleLoadPreset} markets={markets}
           />
         ) : (
           <DashboardView
             onSelect={setActive} scanning={scanning} setScanning={setScanning} markets={markets} topMarket={topMarket}
             perf={perf} signalLog={signalLog} tradeLog={tradeLog} journalEntries={journalEntries} isLoggedIn={isLoggedIn} wsConnected={wsConnected} autoPilot={autoPilot}
+            symbolsLoading={symbolsLoading} symbolsError={symbolsError}
           />
         )}
       </div>
@@ -130,13 +131,13 @@ interface AutoPilotConfig {
   stake: number;
   perTradeTakeProfit: number;
   perTradeStopLoss: number;
-  allowedMarkets: string[];
+  allowedMarkets: string[] | "all"; // "all" = every open market the scanner reports, no restriction
 }
 const AUTOPILOT_KEY = "smart-trader-autopilot-config";
 const DEFAULT_AUTOPILOT_CONFIG: AutoPilotConfig = {
   confidenceThreshold: 90, maxTrades: 5, maxDailyLoss: 10, takeProfitTarget: 25,
   stake: 1, perTradeTakeProfit: 2, perTradeStopLoss: 2,
-  allowedMarkets: ["R_100", "R_75", "BOOM500N", "CRASH300N"],
+  allowedMarkets: "all",
 };
 
 function useAutoPilotEngine({
@@ -199,7 +200,7 @@ function useAutoPilotEngine({
     if (!isLoggedIn) return;
     if (topMarket.trend === "flat") return;
     if (topMarket.confidence < config.confidenceThreshold) return;
-    if (!config.allowedMarkets.includes(topMarket.id)) return;
+    if (config.allowedMarkets !== "all" && !config.allowedMarkets.includes(topMarket.id)) return;
     if (stopReasons.length > 0) return;
 
     busyRef.current = true;
@@ -258,7 +259,7 @@ type AutoPilotEngine = ReturnType<typeof useAutoPilotEngine>;
 
 // ── Dashboard shell ───────────────────────────────────────────────────────────
 function DashboardView({
-  onSelect, scanning, setScanning, markets, topMarket, perf, signalLog, tradeLog, journalEntries, isLoggedIn, wsConnected, autoPilot,
+  onSelect, scanning, setScanning, markets, topMarket, perf, signalLog, tradeLog, journalEntries, isLoggedIn, wsConnected, autoPilot, symbolsLoading, symbolsError,
 }: {
   onSelect: (id: SectionId) => void;
   scanning: boolean; setScanning: (v: boolean) => void;
@@ -268,6 +269,7 @@ function DashboardView({
   tradeLog: { time: number; text: string; sub: string; good: boolean }[];
   journalEntries: JournalEntry[];
   isLoggedIn: boolean; wsConnected: boolean; autoPilot: AutoPilotEngine;
+  symbolsLoading: boolean; symbolsError: string | null;
 }) {
   const navigate = useNavigate();
   const connectedCount = markets.filter(m => m.connected).length;
@@ -299,16 +301,22 @@ function DashboardView({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 mb-3 font-semibold"><Radio className="w-4 h-4 text-primary" /> Live Scanner</div>
-          {!scanning ? <p className="text-sm text-muted-foreground">Not scanning. Start Smart Scan above to connect.</p> : (
-            <div className="space-y-2">
-              {markets.map(m => (
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 font-semibold"><Radio className="w-4 h-4 text-primary" /> Live Scanner</div>
+            {scanning && markets.length > 0 && <span className="text-xs text-muted-foreground">{markets.length} markets</span>}
+          </div>
+          {!scanning ? <p className="text-sm text-muted-foreground">Not scanning. Start Smart Scan above to connect.</p> :
+           symbolsError ? <p className="text-sm text-red-600">{symbolsError}</p> :
+           symbolsLoading ? <p className="text-sm text-muted-foreground flex items-center gap-2"><Activity className="w-3.5 h-3.5 animate-pulse" /> Loading Deriv's live market list...</p> :
+           markets.length === 0 ? <p className="text-sm text-muted-foreground">No markets are currently open.</p> : (
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {[...markets].sort((a, b) => b.confidence - a.confidence).map(m => (
                 <div key={m.id} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-1.5 h-1.5 rounded-full ${m.connected ? "bg-green-500" : "bg-muted-foreground/40"}`} /> {m.label}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${m.connected ? "bg-green-500" : "bg-muted-foreground/40"}`} /> <span className="truncate">{m.label}</span>
                   </div>
-                  {m.ticksSeen < 10 ? <span className="text-muted-foreground text-xs">Searching...</span> : (
-                    <span className={`flex items-center gap-1 text-xs font-medium ${m.trend === "bullish" ? "text-green-600" : m.trend === "bearish" ? "text-red-600" : "text-muted-foreground"}`}>
+                  {m.ticksSeen < 10 ? <span className="text-muted-foreground text-xs shrink-0">Searching...</span> : (
+                    <span className={`flex items-center gap-1 text-xs font-medium shrink-0 ${m.trend === "bullish" ? "text-green-600" : m.trend === "bearish" ? "text-red-600" : "text-muted-foreground"}`}>
                       {m.trend === "bullish" && <ArrowUp className="w-3 h-3" />}{m.trend === "bearish" && <ArrowDown className="w-3 h-3" />}{m.confidence}%
                     </span>
                   )}
@@ -489,12 +497,13 @@ function Timeline({ signalLog, settledTrades, journalEntries, scanning }: {
 }
 
 // ── Section router ────────────────────────────────────────────────────────────
-function SectionView({ section, onBack, topMarket, perf, autoPilot, balance, currency, isLoggedIn, logTrade, onLoadPreset }: {
+function SectionView({ section, onBack, topMarket, perf, autoPilot, balance, currency, isLoggedIn, logTrade, onLoadPreset, markets }: {
   section: SectionDef; onBack: () => void; topMarket: ScannerMarket | null;
   perf: ReturnType<typeof useTodayPerformance>; autoPilot: AutoPilotEngine;
   balance: number | null; currency: string; isLoggedIn: boolean;
   logTrade: (text: string, sub: string, good: boolean) => void;
   onLoadPreset: (preset: StrategyPreset) => void;
+  markets: ScannerMarket[];
 }) {
   return (
     <div>
@@ -502,7 +511,7 @@ function SectionView({ section, onBack, topMarket, perf, autoPilot, balance, cur
       {section.id === "risk-manager" && <RiskManagerSection />}
       {section.id === "goal-mode" && <GoalModeSection perf={perf} />}
       {section.id === "sniper" && <SniperSection topMarket={topMarket} balance={balance} currency={currency} isLoggedIn={isLoggedIn} logTrade={logTrade} />}
-      {section.id === "autopilot" && <AutoPilotSection autoPilot={autoPilot} isLoggedIn={isLoggedIn} balance={balance} currency={currency} topMarket={topMarket} />}
+      {section.id === "autopilot" && <AutoPilotSection autoPilot={autoPilot} isLoggedIn={isLoggedIn} balance={balance} currency={currency} topMarket={topMarket} markets={markets} />}
       {section.id === "auto-exit" && <AutoExitSection autoPilot={autoPilot} />}
       {section.id === "strategies" && <StrategiesSection onLoadPreset={onLoadPreset} />}
       {section.id === "smart-copy" && <SmartCopySection isLoggedIn={isLoggedIn} balance={balance} currency={currency} logTrade={logTrade} />}
@@ -838,18 +847,24 @@ function SniperSection({ topMarket, balance, currency, isLoggedIn, logTrade }: {
 }
 
 // ── AutoPilot: real config + real hard-capped execution loop ─────────────────
-function AutoPilotSection({ autoPilot, isLoggedIn, balance, currency, topMarket }: { autoPilot: AutoPilotEngine; isLoggedIn: boolean; balance: number | null; currency: string; topMarket: ScannerMarket | null }) {
+function AutoPilotSection({ autoPilot, isLoggedIn, balance, currency, topMarket, markets }: { autoPilot: AutoPilotEngine; isLoggedIn: boolean; balance: number | null; currency: string; topMarket: ScannerMarket | null; markets: ScannerMarket[] }) {
   const { config, setConfig, running, start, stop, tradesThisSession, lastError, lastAction, stopReasons, exitStatus } = autoPilot;
   const [form, setForm] = useState(config);
   useEffect(() => { if (!running) setForm(config); }, [config, running]);
 
-  const toggleMarket = (id: string) =>
-    setForm(f => ({ ...f, allowedMarkets: f.allowedMarkets.includes(id) ? f.allowedMarkets.filter(m => m !== id) : [...f.allowedMarkets, id] }));
-
-  const marketOptions = [
-    { id: "R_100", label: "Volatility 100" }, { id: "R_75", label: "Volatility 75" },
-    { id: "BOOM500N", label: "Boom 500" }, { id: "CRASH300N", label: "Crash 300" },
-  ];
+  const isAllowed = (id: string) => form.allowedMarkets === "all" || form.allowedMarkets.includes(id);
+  const toggleMarket = (id: string) => {
+    setForm(f => {
+      if (f.allowedMarkets === "all") {
+        // Unchecking one market while "all" is selected switches to an
+        // explicit list of everything else currently scanned.
+        return { ...f, allowedMarkets: markets.map(m => m.id).filter(mid => mid !== id) };
+      }
+      return { ...f, allowedMarkets: f.allowedMarkets.includes(id) ? f.allowedMarkets.filter(m => m !== id) : [...f.allowedMarkets, id] };
+    });
+  };
+  const selectedCount = form.allowedMarkets === "all" ? markets.length : form.allowedMarkets.length;
+  const noMarketsSelected = form.allowedMarkets !== "all" && form.allowedMarkets.length === 0;
 
   if (!isLoggedIn) return <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">Log in to configure AutoPilot.</div>;
 
@@ -867,7 +882,7 @@ function AutoPilotSection({ autoPilot, isLoggedIn, balance, currency, topMarket 
               <Activity className="w-3.5 h-3.5 animate-pulse shrink-0" />
               Waiting for live scanner data before it can evaluate a trade -- this can take a few seconds after starting.
             </div>
-          ) : !config.allowedMarkets.includes(topMarket.id) ? (
+          ) : config.allowedMarkets !== "all" && !config.allowedMarkets.includes(topMarket.id) ? (
             <div className="text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-3 py-2 mb-3">
               Live signal is on {topMarket.label}, which isn't in your allowed markets -- won't trade until an allowed market signals.
             </div>
@@ -904,20 +919,32 @@ function AutoPilotSection({ autoPilot, isLoggedIn, balance, currency, topMarket 
           <LabeledInput label={`Per-trade take profit (${currency})`} value={String(form.perTradeTakeProfit)} onChange={v => setForm(f => ({ ...f, perTradeTakeProfit: Number(v) }))} prefix="+" />
           <LabeledInput label={`Per-trade stop loss (${currency})`} value={String(form.perTradeStopLoss)} onChange={v => setForm(f => ({ ...f, perTradeStopLoss: Number(v) }))} prefix="-" />
 
-          <label className="block text-xs text-muted-foreground mb-1 mt-2">Allowed markets</label>
-          <div className="space-y-1 mb-4">
-            {marketOptions.map(m => (
-              <label key={m.id} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={form.allowedMarkets.includes(m.id)} onChange={() => toggleMarket(m.id)} /> {m.label}
-              </label>
-            ))}
+          <div className="flex items-center justify-between mt-2 mb-1">
+            <label className="block text-xs text-muted-foreground">Allowed markets ({selectedCount}{markets.length > 0 ? ` / ${markets.length}` : ""})</label>
+            {markets.length > 0 && (
+              <div className="flex gap-2 text-xs">
+                <button type="button" onClick={() => setForm(f => ({ ...f, allowedMarkets: "all" }))} className="text-primary underline">All</button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, allowedMarkets: [] }))} className="text-muted-foreground underline">None</button>
+              </div>
+            )}
           </div>
+          {markets.length === 0 ? (
+            <p className="text-xs text-muted-foreground mb-4">Start Smart Scan from the dashboard first to see live, tradeable markets here -- defaults to every open market once available.</p>
+          ) : (
+            <div className="space-y-1 mb-4 max-h-56 overflow-y-auto border border-border rounded-lg p-2">
+              {markets.map(m => (
+                <label key={m.id} className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={isAllowed(m.id)} onChange={() => toggleMarket(m.id)} /> {m.label}
+                </label>
+              ))}
+            </div>
+          )}
 
           {balance != null && form.stake > balance && <p className="text-xs text-red-600 mb-2">Stake exceeds your balance ({currency} {balance.toFixed(2)}).</p>}
 
           <button
             onClick={() => { setConfig(form); start(); }}
-            disabled={form.allowedMarkets.length === 0 || (balance != null && form.stake > balance)}
+            disabled={noMarketsSelected || (balance != null && form.stake > balance)}
             className="w-full bg-primary text-primary-foreground font-semibold py-2.5 rounded-lg disabled:opacity-40 flex items-center justify-center gap-2"
           >
             <Play className="w-4 h-4" /> Start AutoPilot

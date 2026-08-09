@@ -56,23 +56,45 @@ const normalizeParameters = (parameters: TTradeParameters) => {
 };
 
 const ensureAuthorizedForTrading = async () => {
-    if (api_base.is_authorized) return;
-
-    // api_base.authorizeAndSubscribe() silently no-ops if the underlying
-    // connection (api_base.api) was never created - which normally only
-    // happens as a side effect of Bot Builder's own boot sequence. Pages
-    // that never visit Bot Builder first (Bulk Trader, manual-trading,
-    // auto-trades) would otherwise stay permanently "unauthorized" here
-    // regardless of the real, correct login state in AuthContext.
-    if (!(api_base as any).api) {
-        await (api_base as any).init?.();
-    }
-
-    await (api_base as any).authorizeAndSubscribe?.();
-
     if (!api_base.is_authorized) {
-        throw new Error('Please log in to your Deriv account before trading.');
+        // api_base.authorizeAndSubscribe() silently no-ops if the underlying
+        // connection (api_base.api) was never created - which normally only
+        // happens as a side effect of Bot Builder's own boot sequence. Pages
+        // that never visit Bot Builder first (Bulk Trader, manual-trading,
+        // auto-trades) would otherwise stay permanently "unauthorized" here
+        // regardless of the real, correct login state in AuthContext.
+        if (!(api_base as any).api) {
+            await (api_base as any).init?.();
+        }
+
+        await (api_base as any).authorizeAndSubscribe?.();
+
+        if (!api_base.is_authorized) {
+            throw new Error('Please log in to your Deriv account before trading.');
+        }
     }
+
+    // api_base.is_authorized only reflects the raw WebSocket-level authorize
+    // call. client_store (read by assertSufficientDemoBalance via
+    // globalObserver.getState('client.store')) is a *separate* object,
+    // populated by a React effect reacting to that same auth state --
+    // which can genuinely lag behind by a render cycle or more, especially
+    // on a fresh page load. Smart Trader's scanner needs no auth at all and
+    // can get real tick data and fire a trade attempt in 1-2 seconds, easily
+    // beating React's full mount + OTP/token exchange -- exactly the gap
+    // that produced "client_store.loginid: undefined" in production. Wait
+    // for the store to actually be populated, with a bounded timeout,
+    // instead of silently proceeding into a false "insufficient balance"
+    // error caused by reading an empty store.
+    const STORE_READY_TIMEOUT_MS = 5000;
+    const POLL_INTERVAL_MS = 100;
+    const deadline = Date.now() + STORE_READY_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+        const client_store = globalObserver.getState('client.store') as { loginid?: string } | undefined;
+        if (client_store?.loginid) return;
+        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+    throw new Error('Still finishing login -- please wait a moment and try again.');
 };
 
 const getMoneyDecimals = (currency?: string) => {
