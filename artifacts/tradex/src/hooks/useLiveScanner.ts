@@ -86,7 +86,11 @@ export function useLiveScanner(enabled: boolean) {
     wsRef.current = ws;
 
     const subscribeToSymbols = (list: any[]) => {
-      const open = list.filter(s => s.exchange_is_open === 1);
+      // Deriv's API can return exchange_is_open as either a number or a
+      // string depending on the value -- a strict === 1 check silently
+      // matched nothing, which is what produced "No markets are currently
+      // open" even though synthetic indices trade 24/7. Coerce instead.
+      const open = list.filter(s => Number(s.exchange_is_open) === 1);
 
       const initial: Record<string, ScannerMarket> = {};
       open.forEach(s => {
