@@ -11,6 +11,16 @@ import { useEffect, useRef, useState } from "react";
 // market unpredictability -- treat this the same way regardless of market type.
 const WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
 const TICK_HISTORY_COUNT = 60; // rolling window per symbol
+const SYMBOLS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Module-level cache, shared across every hook instance/remount: repeated
+// scan starts (navigating away and back, the toolbar's "Restart Scan", or
+// just testing the page a lot) were each firing a brand new active_symbols
+// request with zero reuse -- that's what actually produced the real
+// "reached the rate limit for active_symbols" error from Deriv. Caching the
+// result removes almost all of that traffic outright, which is the real
+// fix; retry-with-backoff below is only for the cache-miss case.
+let symbolsCache: { data: any[]; fetchedAt: number } | null = null;
 
 export interface ScannerMarket {
   id: string;
@@ -48,6 +58,8 @@ export function useLiveScanner(enabled: boolean) {
       return;
     }
     let cancelled = false;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let retryAttempt = 0;
     setSymbolsLoading(true);
     setSymbolsError(null);
     pricesRef.current = {};
@@ -55,9 +67,44 @@ export function useLiveScanner(enabled: boolean) {
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
+    const subscribeToSymbols = (list: any[]) => {
+      const open = list.filter(s => s.exchange_is_open === 1);
+
+      const initial: Record<string, ScannerMarket> = {};
+      open.forEach(s => {
+        initial[s.symbol] = {
+          id: s.symbol, label: s.display_name, market: s.market,
+          price: null, risePct: 50, fallPct: 50, trend: "flat", confidence: 0, ticksSeen: 0, connected: false,
+        };
+        pricesRef.current[s.symbol] = [];
+      });
+      setMarkets(initial);
+
+      // Subscribe to every open symbol. Errors on an individual symbol
+      // (e.g. one this account/region isn't entitled to trade) are
+      // caught per-symbol below and just drop that one market rather
+      // than breaking the scan.
+      open.forEach(s => {
+        ws.send(JSON.stringify({
+          ticks_history: s.symbol, adjust_start_time: 1, count: TICK_HISTORY_COUNT,
+          end: "latest", style: "ticks", subscribe: 1,
+        }));
+      });
+    };
+
+    const requestActiveSymbols = () => {
+      const fresh = symbolsCache && Date.now() - symbolsCache.fetchedAt < SYMBOLS_CACHE_TTL_MS;
+      if (fresh) {
+        setSymbolsLoading(false);
+        subscribeToSymbols(symbolsCache!.data);
+        return;
+      }
+      ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
+    };
+
     ws.onopen = () => {
       if (cancelled) return;
-      ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
+      requestActiveSymbols();
     };
 
     ws.onmessage = (event) => {
@@ -66,37 +113,29 @@ export function useLiveScanner(enabled: boolean) {
         const msg = JSON.parse(event.data);
 
         if (msg.msg_type === "active_symbols") {
-          setSymbolsLoading(false);
           if (msg.error) {
-            setSymbolsError(msg.error.message || "Failed to load market list.");
+            // Real, transient, retryable condition (rate limit or similar) --
+            // back off and retry rather than dead-ending on a red error the
+            // user can't do anything about. Capped attempts so a genuinely
+            // broken/misconfigured request doesn't retry forever.
+            retryAttempt++;
+            if (retryAttempt <= 4) {
+              const delayMs = 3000 * retryAttempt; // 3s, 6s, 9s, 12s
+              setSymbolsError(`${msg.error.message || "Failed to load market list."} Retrying in ${Math.round(delayMs / 1000)}s...`);
+              retryTimeout = setTimeout(() => {
+                if (!cancelled) requestActiveSymbols();
+              }, delayMs);
+            } else {
+              setSymbolsLoading(false);
+              setSymbolsError(msg.error.message || "Failed to load market list.");
+            }
             return;
           }
+          setSymbolsLoading(false);
+          setSymbolsError(null);
           const list: any[] = msg.active_symbols ?? [];
-          // Only markets Deriv itself reports as currently tradeable --
-          // subscribing to a closed market would just sit at "Searching..."
-          // forever and misleadingly imply it's live.
-          const open = list.filter(s => s.exchange_is_open === 1);
-
-          const initial: Record<string, ScannerMarket> = {};
-          open.forEach(s => {
-            initial[s.symbol] = {
-              id: s.symbol, label: s.display_name, market: s.market,
-              price: null, risePct: 50, fallPct: 50, trend: "flat", confidence: 0, ticksSeen: 0, connected: false,
-            };
-            pricesRef.current[s.symbol] = [];
-          });
-          setMarkets(initial);
-
-          // Subscribe to every open symbol. Errors on an individual symbol
-          // (e.g. one this account/region isn't entitled to trade) are
-          // caught per-symbol below and just drop that one market rather
-          // than breaking the scan.
-          open.forEach(s => {
-            ws.send(JSON.stringify({
-              ticks_history: s.symbol, adjust_start_time: 1, count: TICK_HISTORY_COUNT,
-              end: "latest", style: "ticks", subscribe: 1,
-            }));
-          });
+          symbolsCache = { data: list, fetchedAt: Date.now() };
+          subscribeToSymbols(list);
           return;
         }
 
@@ -160,6 +199,7 @@ export function useLiveScanner(enabled: boolean) {
 
     return () => {
       cancelled = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
       try { ws.close(); } catch { /* already closed */ }
       wsRef.current = null;
     };
