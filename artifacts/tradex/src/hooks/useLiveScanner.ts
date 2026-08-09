@@ -1,7 +1,21 @@
 import { useEffect, useRef, useState } from "react";
+import { getDomainConfig } from "@/components/shared/utils/config/config";
 
 // Real, public-data market scanner covering every market Deriv reports as
 // currently open -- fetched live via active_symbols, not a hardcoded list.
+//
+// Uses the same "classic" WS endpoint (wss://ws.derivws.com/websockets/v3)
+// with a real app_id that the rest of this app's proven, working
+// authenticated connection relies on (see components/shared/utils/config/
+// config.ts's getSocketURL/getLegacyServerURL) -- NOT the newer
+// /trading/v1/options/ws/public endpoint this scanner previously used.
+// That endpoint has a documented limitation elsewhere in this codebase
+// ("legacy api.authorize(token) will not complete there") and, in
+// practice, returned only a single symbol from active_symbols with no
+// app_id attached -- almost certainly treated as a bare, unidentified,
+// heavily-restricted connection. The classic endpoint + real app_id is
+// what actually returns Deriv's full symbol list.
+//
 // No fabricated numbers: every field here is computed directly from the
 // live tick stream. "Confidence" is nothing more than how lopsided the
 // recent rise/fall count is -- a simple, honest heuristic, not a predictive
@@ -9,9 +23,13 @@ import { useEffect, useRef, useState } from "react";
 // should never be presented as more than "recent short-term skew." Real
 // (forex/stocks/commodities) markets carry the same caveat plus normal
 // market unpredictability -- treat this the same way regardless of market type.
-const WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
 const TICK_HISTORY_COUNT = 60; // rolling window per symbol
 const SYMBOLS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getScannerWsUrl(): string {
+  const { appId } = getDomainConfig();
+  return `wss://ws.derivws.com/websockets/v3?app_id=${encodeURIComponent(appId)}`;
+}
 
 // Module-level cache, shared across every hook instance/remount: repeated
 // scan starts (navigating away and back, the toolbar's "Restart Scan", or
@@ -64,7 +82,7 @@ export function useLiveScanner(enabled: boolean) {
     setSymbolsError(null);
     pricesRef.current = {};
 
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(getScannerWsUrl());
     wsRef.current = ws;
 
     const subscribeToSymbols = (list: any[]) => {

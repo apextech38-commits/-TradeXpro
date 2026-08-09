@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getDomainConfig } from "@/components/shared/utils/config/config";
 
 // Real backtest: fetches actual historical ticks from Deriv's public API and
 // replays the exact same rise/fall-skew logic used live (useLiveScanner),
@@ -8,7 +9,13 @@ import { useState } from "react";
 // house edge) and isn't reproducible from raw tick history alone, so
 // presenting a 1:1 simulated profit would overstate what a real account
 // would actually earn. Win rate is the honest thing to show here.
-const WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
+// Uses the same real, proven "classic" endpoint + app_id as useLiveScanner.ts
+// (see that file's comment for why) rather than the unauthenticated
+// /trading/v1/options/ws/public endpoint this previously used.
+function getBacktestWsUrl(): string {
+  const { appId } = getDomainConfig();
+  return `wss://ws.derivws.com/websockets/v3?app_id=${encodeURIComponent(appId)}`;
+}
 const ROLLING_WINDOW = 60;
 
 export interface StrategyPreset {
@@ -49,7 +56,7 @@ function computeRiseFall(prices: number[]) {
 
 function fetchHistoricalPrices(symbol: string, count: number): Promise<number[]> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(getBacktestWsUrl());
     const timeout = setTimeout(() => { ws.close(); reject(new Error("Timed out fetching historical data.")); }, 15000);
     ws.onopen = () => {
       ws.send(JSON.stringify({ ticks_history: symbol, adjust_start_time: 1, count, end: "latest", style: "ticks" }));
