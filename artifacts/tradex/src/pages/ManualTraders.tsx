@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 
-const DTRADER_URL = 'https://dtrader.tradexpro.co.ke';
+const DTRADER_URL = 'https://m.tradexpro.co.ke';
 
 // ── Keys must exactly match AuthContext.tsx constants ─────────────────────
 const TOKEN_KEY    = 'tradex_access_token';   // localStorage, set after OAuth
@@ -13,7 +13,7 @@ export default function ManualTraders() {
   // actually navigated to DTRADER_URL. Before that it's still same-origin
   // about:blank, and postMessage(data, DTRADER_URL) on that window throws
   // every time (mismatched target vs actual recipient origin) — confirmed
-  // in the live console: "target origin provided (dtrader.tradexpro.co.ke)
+  // in the live console: "target origin provided (m.tradexpro.co.ke)
   // does not match the recipient window's origin (tradexpro.co.ke)".
   const iframeLoadedRef = useRef(false);
   // Mirrors iframeLoadedRef but as state, purely to drive the loading overlay.

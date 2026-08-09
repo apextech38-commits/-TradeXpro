@@ -246,7 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // pushes directly so the navbar never shows a stale/zero figure.
   useEffect(() => {
     const onBalanceBroadcast = (event: MessageEvent) => {
-      if (event.origin !== "https://dtrader.tradexpro.co.ke") return;
+      if (event.origin !== "https://m.tradexpro.co.ke") return;
       if (event.data?.type !== "BALANCE_UPDATE") return;
       // Guard against the iframe being authorized against a different
       // account than the shell currently shows (e.g. iframe boot picking
