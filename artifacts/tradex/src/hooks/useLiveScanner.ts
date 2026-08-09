@@ -99,7 +99,7 @@ export function useLiveScanner(enabled: boolean) {
         subscribeToSymbols(symbolsCache!.data);
         return;
       }
-      ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
+      ws.send(JSON.stringify({ active_symbols: "brief" }));
     };
 
     ws.onopen = () => {
